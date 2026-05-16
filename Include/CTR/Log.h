@@ -14,7 +14,7 @@
 #ifndef NDEBUG
 #define CTR_LOG_DEBUG(...) CTR_LOG(__VA_ARGS__)
 #else
-#define CTR_LOG_DEBUG(fmt) (void)((fmt))
+#define CTR_LOG_DEBUG(...)
 #endif // !NDEBUG
 
 #ifdef __cplusplus
