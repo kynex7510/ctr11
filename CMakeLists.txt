@@ -5,35 +5,24 @@ set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 project(ctrcompat C CXX ASM)
 
-if (CTR_BAREMETAL)
-    # Include libn3ds for baremetal compilation.
-    include(BM/N3DS11)
-    message(STATUS "ctrcompat: Compiling for baremetal (libn3ds)")
-else()
-    message(STATUS "ctrcompat: Compiling for userland (libctru)")
+# Enable ARM11 compilation for baremetal.
+if (CTR_BM)
+    ctr_bm_enable_arm11()
 endif()
 
 # Setup library.
-set (CTRCOMPAT_SOURCES Source/QTMRAM.c)
+set(CTRCOMPAT_SOURCES Source/QTMRAM.c)
 
-if (CTR_BAREMETAL)
-    set(CTRCOMPAT_SOURCES ${CTRCOMPAT_SOURCES}
-        Source/libn3ds.c
-    )
+if (CTR_BM)
+    set(CTRCOMPAT_SOURCES ${CTRCOMPAT_SOURCES} Source/libn3ds.c)
 else()
-    set(CTRCOMPAT_SOURCES ${CTRCOMPAT_SOURCES}
-        Source/libctru.c
-    )
+    set(CTRCOMPAT_SOURCES ${CTRCOMPAT_SOURCES} Source/libctru.c)
 endif()
 
 add_library(ctrcompat STATIC ${CTRCOMPAT_SOURCES})
 
-if (CTR_BAREMETAL)
-    target_include_directories(ctrcompat PUBLIC ${LIBN3DS_INCLUDE_PATHS})
-    target_compile_definitions(ctrcompat PUBLIC CTR_PLATFORM_LIBN3DS)
-    target_link_libraries(ctrcompat PUBLIC n3ds11)
-else()
-    target_compile_definitions(ctrcompat PRIVATE CTR_PLATFORM_LIBCTRU)
+if (CTR_BM)
+    ctr_bm_link_libn3ds(ctrcompat)
 endif()
 
 target_include_directories(ctrcompat PUBLIC Include)

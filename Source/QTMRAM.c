@@ -9,13 +9,11 @@
 #include "QTMRAM.h"
 
 // TODO: consider using a truly platform-agnostic data structure.
-#ifdef CTR_PLATFORM_LIBN3DS
+#ifdef __ARM11__
 #include <arm11/util/rbtree.h>
-#elif defined(CTR_PLATFORM_LIBCTRU)
-#include <3ds/util/rbtree.h>
 #else
-#error "Unknown platform"
-#endif // PLATFORM
+#include <3ds/util/rbtree.h>
+#endif // __ARM11__
 
 typedef struct {
     rbtree_node_t node;
