@@ -22,7 +22,7 @@ endif()
 add_library(ctrcompat STATIC ${CTRCOMPAT_SOURCES})
 
 if (CTR_BM)
-    ctr_bm_link_libn3ds(ctrcompat)
+    ctr_bm_link_libn3ds(ctrcompat PUBLIC)
 endif()
 
 target_include_directories(ctrcompat PUBLIC Include)
