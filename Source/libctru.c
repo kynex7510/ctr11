@@ -6,11 +6,12 @@
 
 #include <3ds.h>
 
-#include <CTR/Break.h>
-#include <CTR/Log.h>
-#include <CTR/Assert.h>
-#include <CTR/Allocator.h>
-#include <CTR/Sync.h>
+#include <CTR11/Break.h>
+#include <CTR11/Log.h>
+#include <CTR11/Assert.h>
+#include <CTR11/Allocator.h>
+#include <CTR11/Sync.h>
+#include <CTR11/Unreachable.h>
 
 #include "QTMRAM.h"
 
@@ -21,18 +22,14 @@
 
 // CTR_BREAK
 
-void impl_ctr_break(void) {
+void impl_ctr11_break(void) {
     svcBreak(USERBREAK_PANIC);
     while (true) {}
 }
 
 // CTR_LOG
 
-void impl_ctr_log(const char* fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-    vfprintf(stderr, fmt, args);
-}
+void impl_ctr11_vlog(const char* fmt, va_list args) { vfprintf(stderr, fmt, args); }
 
 // Allocator
 
@@ -50,16 +47,16 @@ bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize) {
     return base && size;
 }
 
-void* ctrAllocAligned(CTRMemType memType, size_t size, size_t alignment) {
+void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
     if (!alignment) {
         switch (memType) {
-            case CTR_MEM_HEAP:
+            case MemType_Virtual:
                 return malloc(size);
-            case CTR_MEM_LINEAR:
+            case MemType_FCRAM:
                 return linearAlloc(size);
-            case CTR_MEM_VRAM:
+            case MemType_VRAM:
                 return vramAlloc(size);
-            case CTR_MEM_QTMRAM:
+            case MemType_QTMRAM:
                 return qtmramAlloc(size);
             default:
                 return NULL;
@@ -67,155 +64,156 @@ void* ctrAllocAligned(CTRMemType memType, size_t size, size_t alignment) {
     }
 
     switch (memType) {
-        case CTR_MEM_HEAP:
+        case MemType_Virtual:
             return memalign(alignment, size);
-        case CTR_MEM_LINEAR:
+        case MemType_FCRAM:
             return linearMemAlign(size, alignment);
-        case CTR_MEM_VRAM:
+        case MemType_VRAM:
             return vramMemAlign(size, alignment);
-        case CTR_MEM_QTMRAM:
+        case MemType_QTMRAM:
             return qtmramMemAlign(size, alignment);
         default:
             return NULL;
     }
 }
 
-static inline vramAllocPos getVRAMPos(CTRVRAMBank bank) {
-    if (bank == CTR_VRAM_BANK_A)
+static inline vramAllocPos getVRAMPos(VRAMBank bank) {
+    if (bank == VRAMBank_A)
         return VRAM_ALLOC_A;
 
-    if (bank == CTR_VRAM_BANK_B)
+    if (bank == VRAMBank_B)
         return VRAM_ALLOC_B;
 
     return VRAM_ALLOC_ANY;
 }
 
-void* ctrAllocAlignedVRAM(CTRVRAMBank bank, size_t size, size_t aligment) {
+void* AllocMemAlignedVRAM(VRAMBank bank, size_t size, size_t aligment) {
     if (!aligment)
         return vramAllocAt(size, getVRAMPos(bank));
     
     return vramMemAlignAt(size, aligment, getVRAMPos(bank));
 }
 
-void ctrFree(void* p) {
-    switch (ctrGetMemType(p)) {
-        case CTR_MEM_HEAP:
+void FreeMem(void* p) {
+    switch (GetMemType(p)) {
+        case MemType_Virtual:
             free(p);
             break;
-        case CTR_MEM_LINEAR:
+        case MemType_FCRAM:
             linearFree(p);
             break;
-        case CTR_MEM_VRAM:
+        case MemType_VRAM:
             vramFree(p);
             break;
-        case CTR_MEM_QTMRAM:
+        case MemType_QTMRAM:
             qtmramFree(p);
             break;
-        default:;
     }
 }
 
-static void* genericRealloc(CTRMemType type, void* p, size_t size) {
-    void* q = ctrAlloc(type, size);
+static void* genericRealloc(MemType type, void* p, size_t size) {
+    void* q = AllocMem(type, size);
     if (q) {
-        const size_t oldSize = ctrGetAllocSize(p);
+        const size_t oldSize = GetAllocSize(p);
         memcpy(q, p, size < oldSize ? size : oldSize);
-        ctrFree(p);
+        FreeMem(p);
     }
 
     return q;
 }
 
 static inline void* vramReallocCustom(void* p, size_t newSize) {
-    const CTRVRAMBank bank = ctrGetVRAMBank(p);
+    const VRAMBank bank = GetVRAMBank(p);
 
     // If the new size is less than the old size, reallocation must succeed.
-    const size_t oldSize = ctrGetAllocSize(p);
+    const size_t oldSize = GetAllocSize(p);
     if (newSize < oldSize) {
-        ctrFree(p);
-        return ctrAllocVRAM(bank, newSize);
+        FreeMem(p);
+        void* newp = AllocMemVRAM(bank, newSize);
+        CTR_BREAK_IF(!newp);
+        return newp;
     }
 
     // Try to realloc memory in the same bank first.
-    void* q = ctrAllocVRAM(bank, newSize);
+    void* q = AllocMemVRAM(bank, newSize);
     if (!q)
-        q = ctrAllocVRAM(bank == CTR_VRAM_BANK_A ? CTR_VRAM_BANK_B : CTR_VRAM_BANK_A, newSize);
+        q = AllocMemVRAM(bank == VRAMBank_A ? VRAMBank_B : VRAMBank_A, newSize);
 
     if (q)
-        ctrFree(p);
+        FreeMem(p);
 
     return q;
 }
 
-void* ctrRealloc(void* p, size_t newSize) {
+void* ReallocMem(void* p, size_t newSize) {
     if (newSize == 0) {
-        ctrFree(p);
+        FreeMem(p);
         return NULL;
     }
 
-    switch (ctrGetMemType(p)) {
-        case CTR_MEM_HEAP:
+    switch (GetMemType(p)) {
+        case MemType_Virtual:
             return realloc(p, newSize);
-        case CTR_MEM_LINEAR:
-            return genericRealloc(CTR_MEM_LINEAR, p, newSize);
-        case CTR_MEM_VRAM:
+        case MemType_FCRAM:
+            return genericRealloc(MemType_FCRAM, p, newSize);
+        case MemType_VRAM:
             return vramReallocCustom(p, newSize);
-        case CTR_MEM_QTMRAM:
-            return genericRealloc(CTR_MEM_QTMRAM, p, newSize);
+        case MemType_QTMRAM:
+            return genericRealloc(MemType_QTMRAM, p, newSize);
         default:
-            return NULL;
+            CTR_UNREACHABLE("Invalid memory type");
     }
 }
 
-CTRMemType ctrGetMemType(const void* p) {
+MemType GetMemType(const void* p) {
     const u32 addr = (u32)p;
 
     if (addr >= OS_HEAP_AREA_BEGIN && addr < OS_HEAP_AREA_END)
-        return CTR_MEM_HEAP;
+        return MemType_Virtual;
 
     if (addr >= OS_FCRAM_VADDR && addr < (OS_FCRAM_VADDR + OS_FCRAM_SIZE))
-        return CTR_MEM_LINEAR;
+        return MemType_FCRAM;
 
     if (addr >= OS_VRAM_VADDR && addr < (OS_VRAM_VADDR + OS_VRAM_SIZE))
-        return CTR_MEM_VRAM;
+        return MemType_VRAM;
 
     if (addr >= OS_QTMRAM_VADDR && addr < (OS_QTMRAM_VADDR + OS_QTMRAM_SIZE))
-        return CTR_MEM_QTMRAM;
+        return MemType_QTMRAM;
 
-    return CTR_MEM_UNKNOWN;
+    CTR_UNREACHABLE("Invalid address 0x%08X", (u32)p);
 }
 
-CTRVRAMBank ctrGetVRAMBank(const void* p) {
+VRAMBank GetVRAMBank(const void* p) {
     const size_t bankSize = OS_VRAM_SIZE / 2;
     const u32 addr = (u32)p;
 
     if (addr >= OS_VRAM_VADDR && addr < (OS_VRAM_VADDR + bankSize))
-        return CTR_VRAM_BANK_A;
+        return VRAMBank_A;
 
     if (addr >= (OS_VRAM_VADDR + bankSize) && addr < (OS_VRAM_VADDR + bankSize * 2))
-        return CTR_VRAM_BANK_B;
+        return VRAMBank_B;
 
-    return CTR_VRAM_BANK_UNKNOWN;
+    CTR_UNREACHABLE("Invalid address 0x%08X", (u32)p);
 }
 
-size_t ctrGetAllocSize(const void* p) {
-    switch (ctrGetMemType(p)) {
-        case CTR_MEM_HEAP:
+size_t GetAllocSize(const void* p) {
+    switch (GetMemType(p)) {
+        case MemType_Virtual:
             return malloc_usable_size((void*)p);
-        case CTR_MEM_LINEAR:
+        case MemType_FCRAM:
             return linearGetSize((void*)p);
-        case CTR_MEM_VRAM:
+        case MemType_VRAM:
             return vramGetSize((void*)p);
-        case CTR_MEM_QTMRAM:
+        case MemType_QTMRAM:
             return qtmramGetSize(p);
         default:
-            return 0;
+            CTR_UNREACHABLE("Invalid memory type");
     }
 }
 
-uintptr_t ctrGetPhysicalAddress(const void* addr) { return osConvertVirtToPhys(addr); }
+uintptr_t GetPhysicalAddress(const void* addr) { return osConvertVirtToPhys(addr); }
 
-void* ctrGetVirtualAddress(uintptr_t addr) {
+void* GetVirtualAddress(uintptr_t addr) {
 #define CONVERT_REGION(_name)                                             \
     if (addr >= OS_##_name##_PADDR &&                                     \
         addr < (OS_##_name##_PADDR + OS_##_name##_SIZE))                  \
@@ -234,77 +232,69 @@ void* ctrGetVirtualAddress(uintptr_t addr) {
 
 // Cache
 
-void ctrInvalidateDataCache(const void* addr, size_t size) {
-    // GSP will return an error if the address is not in FCRAM/VRAM.
-    const bool fcram = (u32)addr >= OS_FCRAM_VADDR && (u32)addr <= (OS_FCRAM_VADDR + OS_FCRAM_SIZE);
-    const bool vram = (u32)addr >= OS_VRAM_VADDR && (u32)addr <= (OS_VRAM_VADDR + OS_VRAM_SIZE);
-
-    if (fcram || vram) {
-        CTR_BREAK_IF(R_FAILED(GSPGPU_InvalidateDataCache(addr, size)));
+void InvalidateDataCache(const void* addr, size_t size) {
+    if (!IsMemVirtual(addr)) {
+        CTR_BREAK_IF(R_FAILED(svcInvalidateProcessDataCache(CUR_PROCESS_HANDLE, (u32)addr, size)));
     }
 }
 
-void ctrFlushDataCache(const void* addr, size_t size) {
-    // GSP will return an error if the address is not in FCRAM/VRAM.
-    const bool fcram = (u32)addr >= OS_FCRAM_VADDR && (u32)addr <= (OS_FCRAM_VADDR + OS_FCRAM_SIZE);
-    const bool vram = (u32)addr >= OS_VRAM_VADDR && (u32)addr <= (OS_VRAM_VADDR + OS_VRAM_SIZE);
-
-    if (fcram || vram) {
-        CTR_BREAK_IF(R_FAILED(GSPGPU_FlushDataCache(addr, size)));
+void FlushDataCache(const void* addr, size_t size) {
+    if (!IsMemVirtual(addr)) {
+        CTR_BREAK_IF(R_FAILED(svcFlushProcessDataCache(CUR_PROCESS_HANDLE, (u32)addr, size)));
     }
 }
 
 // Sync
 
-void ctrYield(void) { svcSleepThread(0); }
+void Yield(void) { svcSleepThread(0); }
 
-CTRMtx* ctrMtxCreate(void) {
-    LightLock* l = ctrAlloc(CTR_MEM_HEAP, sizeof(LightLock));
+Mutex CreateMutex(void) {
+    LightLock* l = AllocMem(MemType_Virtual, sizeof(LightLock));
     CTR_BREAK_IF(l == NULL);
     LightLock_Init(l);
-    return (CTRMtx*)l;
+    return (Mutex)l;
 }
 
-void ctrMtxDestroy(CTRMtx* mtx) {
-    CTR_ASSERT(mtx);
-    ctrFree(mtx);
+void DestroyMutex(Mutex m) {
+    CTR_ASSERT(m);
+    FreeMem(m);
 }
 
-void ctrMtxAcquire(CTRMtx* mtx) {
-    CTR_ASSERT(mtx);
-    LightLock_Lock((LightLock*)mtx);
+void AcquireMutex(Mutex m) {
+    CTR_ASSERT(m);
+    LightLock_Lock((LightLock*)m);
 }
 
-void ctrMtxRelease(CTRMtx* mtx) {
-    CTR_ASSERT(mtx);
-    LightLock_Unlock((LightLock*)mtx);
+void ReleaseMutex(Mutex m) {
+    CTR_ASSERT(m);
+    LightLock_Unlock((LightLock*)m);
 }
 
-CTRCV* ctrCVCreate(void) {
-    CondVar* cv = ctrAlloc(CTR_MEM_HEAP, sizeof(CondVar));
+CV CreateCV(void) {
+    CondVar* cv = AllocMem(MemType_Virtual, sizeof(CondVar));
     CTR_BREAK_IF(cv == NULL);
     CondVar_Init(cv);
-    return (CTRCV*)cv;
+    return (CV)cv;
 }
 
-void ctrCVDestroy(CTRCV* cv) {
+void DestroyCV(CV cv) {
     CTR_ASSERT(cv);
-    ctrFree(cv);
+    FreeMem(cv);
 }
 
-void ctrCVWait(CTRCV* cv, CTRMtx* mtx) {
+void WaitCV(CV cv, Mutex m) {
     CTR_ASSERT(cv);
-    CTR_ASSERT(mtx);
+    CTR_ASSERT(m);
 
-    CondVar_Wait((CondVar*)cv, (LightLock*)mtx);
+    CondVar_Wait((CondVar*)cv, (LightLock*)m);
 }
 
-void ctrCVNotify(CTRCV* cv, size_t count) {
+void NotifyCV(CV cv, size_t count) {
     CTR_ASSERT(cv);
     CondVar_WakeUp((CondVar*)cv, count);
 }
 
-void ctrCVBroadcast(CTRCV* cv) {
+void BroadcastCV(CV cv) {
     CTR_ASSERT(cv);
     CondVar_Broadcast((CondVar*)cv);
 }

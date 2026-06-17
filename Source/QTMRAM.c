@@ -4,7 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <CTR/Allocator.h>
+#include <CTR11/Allocator.h>
+#include <CTR11/Align.h>
 
 #include "QTMRAM.h"
 
@@ -52,7 +53,7 @@ static bool lazyInit(void) {
 }
 
 static void* insertNode(uintptr_t base, size_t size) {
-    MemoryBlock* b = (MemoryBlock*)ctrAlloc(CTR_MEM_HEAP, sizeof(MemoryBlock));
+    MemoryBlock* b = (MemoryBlock*)AllocMem(MemType_Virtual, sizeof(MemoryBlock));
     if (b) {
         b->base = base;
         b->size = size;
@@ -63,16 +64,13 @@ static void* insertNode(uintptr_t base, size_t size) {
     return NULL;
 }
 
-bool isPo2(uintptr_t v) { return !(v & (v - 1)); }
-uintptr_t alignUp(uintptr_t v, size_t alignment) { return (v + (alignment - 1)) & ~(alignment - 1); }
-
 void* qtmramMemAlign(size_t size, size_t alignment) {
     lazyInit();
 
     if (alignment < 8)
         alignment = 8;
 
-    if (!isPo2(alignment))
+    if (!IsPowerOf2(alignment))
         return NULL;
 
     // Get last memory block.
@@ -83,7 +81,7 @@ void* qtmramMemAlign(size_t size, size_t alignment) {
     }
 
     // If there's space after the last block, use it.
-    const uintptr_t lastEndAligned = alignUp(last->base + last->size, alignment);
+    const uintptr_t lastEndAligned = AlignUp(last->base + last->size, alignment);
     if ((g_AllocBase + g_MaxAllocSize) - lastEndAligned >= size)
         return insertNode(lastEndAligned, size);
 
@@ -92,7 +90,7 @@ void* qtmramMemAlign(size_t size, size_t alignment) {
     MemoryBlock* prev = (MemoryBlock*)rbtree_node_prev(&current->node);
 
     while (prev) {
-        const uintptr_t prevEndAligned = alignUp(prev->base + prev->size, alignment);
+        const uintptr_t prevEndAligned = AlignUp(prev->base + prev->size, alignment);
         if (current->base - prevEndAligned >= size)
             return insertNode(prevEndAligned, size);
 
@@ -115,7 +113,7 @@ void qtmramFree(void* p) {
         rbtree_node_t* found = rbtree_find(&g_Tree, &b.node);
         if (found) {
             rbtree_remove(&g_Tree, found, NULL);
-            ctrFree(found);
+            FreeMem(found);
         }
     }
 }

@@ -4,20 +4,20 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#ifndef GUARD_CTR_CACHE_H
-#define GUARD_CTR_CACHE_H
+#ifndef GUARD_CTR11_CACHE_H
+#define GUARD_CTR11_CACHE_H
 
-#include <CTR/Defs.h>
+#include <CTR11/Defs.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
 
-void ctrInvalidateDataCache(const void* addr, size_t size);
-void ctrFlushDataCache(const void* addr, size_t size);
+void InvalidateDataCache(const void* addr, size_t size);
+void FlushDataCache(const void* addr, size_t size);
 
 #ifdef __cplusplus
 }
 #endif // __cplusplus
 
-#endif /* GUARD_CTR_CACHE_H */
+#endif /* GUARD_CTR11_CACHE_H */

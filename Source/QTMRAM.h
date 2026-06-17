@@ -4,10 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#ifndef GUARD_CTR_QTMRAM_H
-#define GUARD_CTR_QTMRAM_H
+#ifndef GUARD_CTR11_QTMRAM_H
+#define GUARD_CTR11_QTMRAM_H
 
-#include <CTR/Defs.h>
+#include <CTR11/Defs.h>
 
 bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize);
 void* qtmramMemAlign(size_t size, size_t alignment);
@@ -17,4 +17,4 @@ CTR_INLINE void* qtmramAlloc(size_t size) { return qtmramMemAlign(size, 0); }
 void qtmramFree(void* p);
 size_t qtmramGetSize(const void* p);
 
-#endif // GUARD_CTR_QTMRAM_H
+#endif // GUARD_CTR11_QTMRAM_H

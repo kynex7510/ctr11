@@ -4,8 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#ifndef GUARD_CTR_DEFS_H
-#define GUARD_CTR_DEFS_H
+#ifndef GUARD_CTR11_DEFS_H
+#define GUARD_CTR11_DEFS_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -22,13 +22,13 @@
 
 /* Private stuff */
 
-#define impl_CTR_AS_STRING0(x) #x
-#define impl_CTR_AS_STRING(x) impl_CTR_AS_STRING0(x)
+#define impl_CTR11_AS_STRING0(x) #x
+#define impl_CTR11_AS_STRING(x) impl_CTR11_AS_STRING0(x)
 
 #ifdef __cplusplus
-#define impl_CTR_GLOBAL_NS ::
+#define impl_CTR11_GLOBAL_NS ::
 #else
-#define impl_CTR_GLOBAL_NS
+#define impl_CTR11_GLOBAL_NS
 #endif // __cplusplus
 
-#endif /* GUARD_CTR_DEFS_H */
+#endif /* GUARD_CTR11_DEFS_H */
