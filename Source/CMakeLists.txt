@@ -12,7 +12,7 @@ else()
     set(CTR11_SOURCES ${CTR11_SOURCES} libctru.c)
 endif()
 
-add_library(ctr11 OBJECT ${CTR11_SOURCES})
+add_library(ctr11 STATIC ${CTR11_SOURCES})
 
 if (CTR_BM)
     ctr_bm_link_libn3ds(ctr11 PUBLIC)
