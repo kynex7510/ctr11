@@ -29,7 +29,10 @@ void impl_ctr11_break(void) {
 
 // CTR_LOG
 
-void impl_ctr11_vlog(const char* fmt, va_list args) { vfprintf(stderr, fmt, args); }
+void impl_ctr11_vlog(const char* fmt, va_list args) {
+    vfprintf(stderr, fmt, args);
+    fflush(stderr);
+}
 
 // Allocator
 
