@@ -42,6 +42,8 @@ void impl_ctr11_vlog(const char* fmt, va_list args) {
 
 // Allocator
 
+#ifdef CTR11_ENABLE_QTMRAM
+
 bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize) {
     // TODO: mmu checks?
     // TODO: enable GPU access and stuff
@@ -49,6 +51,8 @@ bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize) {
     *regionSize = QTM_RAM_SIZE;
     return true;
 }
+
+#endif // CTR11_ENABLE_QTMRAM
 
 void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
     if (!alignment) {
@@ -59,8 +63,10 @@ void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
                 return fcramAlloc(size);
             case MemType_VRAM:
                 return vramAlloc(size);
+#ifdef CTR11_ENABLE_QTMRAM
             case MemType_QTMRAM:
                 return qtmramAlloc(size);
+#endif // CTR11_ENABLE_QTMRAM
             default:
                 return NULL;
         }
@@ -73,21 +79,26 @@ void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
             return fcramMemAlign(size, alignment);
         case MemType_VRAM:
             return vramMemAlign(size, alignment);
+#ifdef CTR11_ENABLE_QTMRAM
         case MemType_QTMRAM:
             return qtmramMemAlign(size, alignment);
+#endif // CTR11_ENABLE_QTMRAM
         default:
             return NULL;
     }
 }
 
 static inline vramAllocPos getVRAMPos(VRAMBank bank) {
-    if (bank == VRAMBank_A)
-        return VRAM_ALLOC_A;
-
-    if (bank == VRAMBank_B)
-        return VRAM_ALLOC_B;
-
-    return VRAM_ALLOC_ANY;
+    switch (bank) {
+        case VRAMBank_A:
+            return VRAM_ALLOC_A;
+        case VRAMBank_B:
+            return VRAM_ALLOC_B;
+        case VRAMBank_Any:
+            return VRAM_ALLOC_ANY;
+        default:
+            CTR_UNREACHABLE("Invalid VRAM bank");
+    }
 }
 
 void* AllocMemAlignedVRAM(VRAMBank bank, size_t size, size_t aligment) {
@@ -108,9 +119,13 @@ void FreeMem(void* p) {
         case MemType_VRAM:
             vramFree(p);
             break;
+#ifdef CTR11_ENABLE_QTMRAM
         case MemType_QTMRAM:
             qtmramFree(p);
             break;
+#endif // CTR11_ENABLE_QTMRAM
+        default:
+            CTR_UNREACHABLE("Invalid memory type");
     }
 }
 
@@ -161,8 +176,10 @@ void* ReallocMem(void* p, size_t newSize) {
             return genericRealloc(MemType_FCRAM, p, newSize);
         case MemType_VRAM:
             return vramReallocCustom(p, newSize);
+#ifdef CTR11_ENABLE_QTMRAM
         case MemType_QTMRAM:
             return genericRealloc(MemType_QTMRAM, p, newSize);
+#endif // CTR11_ENABLE_QTMRAM
         default:
             CTR_UNREACHABLE("Invalid memory type");
     }
@@ -181,10 +198,12 @@ MemType GetMemType(const void* p) {
     if (addr >= VRAM_BASE && addr < (VRAM_BASE + VRAM_SIZE))
         return MemType_VRAM;
 
+#ifdef CTR11_ENABLE_QTMRAM
     if (addr >= QTM_RAM_BASE && addr < (QTM_RAM_BASE + QTM_RAM_SIZE))
         return MemType_QTMRAM;
+#endif // CTR11_ENABLE_QTMRAM
 
-    CTR_UNREACHABLE("Invalid address 0x%08X", (u32)p);
+    CTR_UNREACHABLE("Invalid address: 0x%08X", addr);
 }
 
 VRAMBank GetVRAMBank(const void* p) {
@@ -196,7 +215,7 @@ VRAMBank GetVRAMBank(const void* p) {
     if (addr >= VRAM_BANK1 && addr < (VRAM_BANK1 + VRAM_BANK_SIZE))
         return VRAMBank_B;
 
-    CTR_UNREACHABLE("Invalid address 0x%08X", (u32)p);
+    CTR_UNREACHABLE("Invalid address: 0x%08X", addr);
 }
 
 size_t GetAllocSize(const void* p) {
@@ -207,8 +226,10 @@ size_t GetAllocSize(const void* p) {
             return fcramGetSize((void*)p);
         case MemType_VRAM:
             return vramGetSize((void*)p);
+#ifdef CTR11_ENABLE_QTMRAM
         case MemType_QTMRAM:
             return qtmramGetSize(p);
+#endif // CTR11_ENABLE_QTMRAM
         default:
             CTR_UNREACHABLE("Invalid memory type");
     }

@@ -10,16 +10,16 @@
 #include <CTR11/Defs.h>
 
 typedef enum {
-    MemType_Virtual = 0,
-    MemType_FCRAM = 1,
-    MemType_VRAM = 2,
-    MemType_QTMRAM = 3,
+    MemType_Virtual,
+    MemType_FCRAM,
+    MemType_VRAM,
+    MemType_QTMRAM,
 } MemType;
 
 typedef enum {
-    VRAMBank_A = 0,
-    VRAMBank_B = 1,
-    VRAMBank_Any = 2,
+    VRAMBank_A,
+    VRAMBank_B,
+    VRAMBank_Any,
 } VRAMBank;
 
 #ifdef __cplusplus
