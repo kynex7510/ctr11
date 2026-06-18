@@ -109,6 +109,9 @@ void* AllocMemAlignedVRAM(VRAMBank bank, size_t size, size_t aligment) {
 }
 
 void FreeMem(void* p) {
+    if (!p)
+        return;
+
     switch (GetMemType(p)) {
         case MemType_Virtual:
             free(p);
