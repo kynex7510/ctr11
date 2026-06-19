@@ -13,14 +13,12 @@
 
 #ifndef NDEBUG
 
-#define CTR_ASSERT(cond)                                                    \
-    do {                                                                    \
-        if (!CTR_LIKELY(cond)) {                                            \
-            CTR_LOG_DEBUG("Assertion failed: " impl_CTR11_AS_STRING(cond)); \
-            CTR_LOG_DEBUG("- In file: " __FILE__);                          \
-            CTR_LOG_DEBUG("- On line: " impl_CTR11_AS_STRING(__LINE__));    \
-            CTR_BREAK();                                                    \
-        }                                                                   \
+#define CTR_ASSERT(cond)                                                       \
+    do {                                                                       \
+        if (!CTR_LIKELY(cond)) {                                               \
+            CTR_LOG_LOCATION("Assertion failed: " impl_CTR11_AS_STRING(cond)); \
+            CTR_BREAK();                                                       \
+        }                                                                      \
     } while (false)
 
 #else

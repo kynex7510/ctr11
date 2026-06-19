@@ -12,12 +12,10 @@
 
 /* CTR_UNREACHABLE */
 
-#define CTR_UNREACHABLE(...)                                         \
-    do {                                                             \
-        CTR_LOG_DEBUG(__VA_ARGS__);                                  \
-        CTR_LOG_DEBUG("- In file: " __FILE__);                       \
-        CTR_LOG_DEBUG("- On line: " impl_CTR11_AS_STRING(__LINE__)); \
-        CTR_BREAK();                                                 \
+#define CTR_UNREACHABLE(...)           \
+    do {                               \
+        CTR_LOG_LOCATION(__VA_ARGS__); \
+        CTR_BREAK();                   \
     } while (false)
 
 #endif /* GUARD_CTR11_UNREACHABLE_H */

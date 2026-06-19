@@ -11,13 +11,23 @@
 
 #include <stdarg.h>
 
-#define CTR_LOG(...) impl_CTR11_GLOBAL_NS impl_ctr11_log(__VA_ARGS__)
+#define CTR_LOG(...)                                      \
+    do {                                                  \
+        impl_CTR11_GLOBAL_NS impl_ctr11_log(__VA_ARGS__); \
+    } while (false)
 
 #ifndef NDEBUG
 #define CTR_LOG_DEBUG(...) CTR_LOG(__VA_ARGS__)
 #else
 #define CTR_LOG_DEBUG(...)
 #endif // !NDEBUG
+
+#define CTR_LOG_LOCATION(...)                                        \
+    do {                                                             \
+        CTR_LOG_DEBUG(__VA_ARGS__);                                  \
+        CTR_LOG_DEBUG("- In file: " __FILE__);                       \
+        CTR_LOG_DEBUG("- On line: " impl_CTR11_AS_STRING(__LINE__)); \
+    } while (false)
 
 #ifdef __cplusplus
 extern "C" {
