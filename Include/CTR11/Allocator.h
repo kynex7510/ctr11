@@ -10,16 +10,18 @@
 #include <CTR11/Defs.h>
 
 typedef enum {
-    MemType_Virtual,
+    MemType_Application,
     MemType_FCRAM,
     MemType_VRAM,
     MemType_QTMRAM,
+    MemType_Unknown,
 } MemType;
 
 typedef enum {
     VRAMBank_A,
     VRAMBank_B,
     VRAMBank_Any,
+    VRAMBank_Unknown,
 } VRAMBank;
 
 #ifdef __cplusplus
@@ -41,7 +43,7 @@ MemType GetMemType(const void* p);
 VRAMBank GetVRAMBank(const void* p);
 size_t GetAllocSize(const void* p);
 
-CTR_INLINE bool IsMemVirtual(const void* p) { return GetMemType(p) == MemType_Virtual; }
+CTR_INLINE bool IsMemApplication(const void* p) { return GetMemType(p) == MemType_Application; }
 CTR_INLINE bool IsMemFCRAM(const void* p) { return GetMemType(p) == MemType_FCRAM; }
 CTR_INLINE bool IsMemVRAM(const void* p) { return GetMemType(p) == MemType_VRAM; }
 CTR_INLINE bool IsMemQTMRAM(const void* p) { return GetMemType(p) == MemType_QTMRAM; }

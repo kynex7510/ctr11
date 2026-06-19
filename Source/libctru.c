@@ -23,8 +23,8 @@
 // CTR_BREAK
 
 void impl_ctr11_break(void) {
-    svcBreak(USERBREAK_PANIC);
-    while (true) {}
+    while (true)
+        svcBreak(USERBREAK_PANIC);
 }
 
 // CTR_LOG
@@ -57,7 +57,7 @@ bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize) {
 void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
     if (!alignment) {
         switch (memType) {
-            case MemType_Virtual:
+            case MemType_Application:
                 return malloc(size);
             case MemType_FCRAM:
                 return linearAlloc(size);
@@ -68,12 +68,12 @@ void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
                 return qtmramAlloc(size);
 #endif // CTR11_ENABLE_QTMRAM
             default:
-                return NULL;
+                CTR_UNREACHABLE("Invalid memory type");
         }
     }
 
     switch (memType) {
-        case MemType_Virtual:
+        case MemType_Application:
             return memalign(alignment, size);
         case MemType_FCRAM:
             return linearMemAlign(size, alignment);
@@ -84,7 +84,7 @@ void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
             return qtmramMemAlign(size, alignment);
 #endif // CTR11_ENABLE_QTMRAM
         default:
-            return NULL;
+            CTR_UNREACHABLE("Invalid memory type");
     }
 }
 
@@ -113,7 +113,7 @@ void FreeMem(void* p) {
         return;
 
     switch (GetMemType(p)) {
-        case MemType_Virtual:
+        case MemType_Application:
             free(p);
             break;
         case MemType_FCRAM:
@@ -128,7 +128,7 @@ void FreeMem(void* p) {
             break;
 #endif // CTR11_ENABLE_QTMRAM
         default:
-            CTR_UNREACHABLE("Invalid memory type");
+            CTR_LOG_LOCATION("Invalid memory type");
     }
 }
 
@@ -173,7 +173,7 @@ void* ReallocMem(void* p, size_t newSize) {
     }
 
     switch (GetMemType(p)) {
-        case MemType_Virtual:
+        case MemType_Application:
             return realloc(p, newSize);
         case MemType_FCRAM:
             return genericRealloc(MemType_FCRAM, p, newSize);
@@ -184,7 +184,7 @@ void* ReallocMem(void* p, size_t newSize) {
             return genericRealloc(MemType_QTMRAM, p, newSize);
 #endif // CTR11_ENABLE_QTMRAM
         default:
-            CTR_UNREACHABLE("Invalid memory type");
+            CTR_LOG_LOCATION("Invalid memory type");
     }
 }
 
@@ -192,7 +192,7 @@ MemType GetMemType(const void* p) {
     const u32 addr = (u32)p;
 
     if (addr >= OS_HEAP_AREA_BEGIN && addr < OS_HEAP_AREA_END)
-        return MemType_Virtual;
+        return MemType_Application;
 
     if (addr >= OS_FCRAM_VADDR && addr < (OS_FCRAM_VADDR + OS_FCRAM_SIZE))
         return MemType_FCRAM;
@@ -205,7 +205,8 @@ MemType GetMemType(const void* p) {
         return MemType_QTMRAM;
 #endif // CTR11_ENABLE_QTMRAM
 
-    CTR_UNREACHABLE("Invalid address: 0x%08X", addr);
+    CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
+    return MemType_Unknown;
 }
 
 VRAMBank GetVRAMBank(const void* p) {
@@ -218,12 +219,13 @@ VRAMBank GetVRAMBank(const void* p) {
     if (addr >= (OS_VRAM_VADDR + bankSize) && addr < (OS_VRAM_VADDR + bankSize * 2))
         return VRAMBank_B;
 
-    CTR_UNREACHABLE("Invalid address: 0x%08X", addr);
+    CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
+    return VRAMBank_Unknown;
 }
 
 size_t GetAllocSize(const void* p) {
     switch (GetMemType(p)) {
-        case MemType_Virtual:
+        case MemType_Application:
             return malloc_usable_size((void*)p);
         case MemType_FCRAM:
             return linearGetSize((void*)p);
@@ -234,7 +236,8 @@ size_t GetAllocSize(const void* p) {
             return qtmramGetSize(p);
 #endif // CTR11_ENABLE_QTMRAM
         default:
-            CTR_UNREACHABLE("Invalid memory type");
+            CTR_LOG_LOCATION("Invalid memory type");
+            return 0;
     }
 }
 
@@ -276,7 +279,7 @@ void FlushDataCache(const void* addr, size_t size) {
 void Yield(void) { svcSleepThread(0); }
 
 Mutex CreateMutex(void) {
-    LightLock* l = AllocMem(MemType_Virtual, sizeof(LightLock));
+    LightLock* l = AllocMem(MemType_Application, sizeof(LightLock));
     CTR_BREAK_IF(l == NULL);
     LightLock_Init(l);
     return (Mutex)l;
@@ -298,7 +301,7 @@ void ReleaseMutex(Mutex m) {
 }
 
 CV CreateCV(void) {
-    CondVar* cv = AllocMem(MemType_Virtual, sizeof(CondVar));
+    CondVar* cv = AllocMem(MemType_Application, sizeof(CondVar));
     CTR_BREAK_IF(cv == NULL);
     CondVar_Init(cv);
     return (CV)cv;

@@ -57,7 +57,7 @@ bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize) {
 void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
     if (!alignment) {
         switch (memType) {
-            case MemType_Virtual:
+            case MemType_Application:
                 return malloc(size);
             case MemType_FCRAM:
                 return fcramAlloc(size);
@@ -68,12 +68,12 @@ void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
                 return qtmramAlloc(size);
 #endif // CTR11_ENABLE_QTMRAM
             default:
-                return NULL;
+                CTR_UNREACHABLE("Invalid memory type");
         }
     }
 
     switch (memType) {
-        case MemType_Virtual:
+        case MemType_Application:
             return memalign(alignment, size);
         case MemType_FCRAM:
             return fcramMemAlign(size, alignment);
@@ -84,7 +84,7 @@ void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
             return qtmramMemAlign(size, alignment);
 #endif // CTR11_ENABLE_QTMRAM
         default:
-            return NULL;
+            CTR_UNREACHABLE("Invalid memory type");
     }
 }
 
@@ -113,7 +113,7 @@ void FreeMem(void* p) {
         return;
 
     switch (GetMemType(p)) {
-        case MemType_Virtual:
+        case MemType_Application:
             free(p);
             break;
         case MemType_FCRAM:
@@ -128,7 +128,7 @@ void FreeMem(void* p) {
             break;
 #endif // CTR11_ENABLE_QTMRAM
         default:
-            CTR_UNREACHABLE("Invalid memory type");
+            CTR_LOG_LOCATION("Invalid memory type");
     }
 }
 
@@ -173,7 +173,7 @@ void* ReallocMem(void* p, size_t newSize) {
     }
 
     switch (GetMemType(p)) {
-        case MemType_Virtual:
+        case MemType_Application:
             return realloc(p, newSize);
         case MemType_FCRAM:
             return genericRealloc(MemType_FCRAM, p, newSize);
@@ -184,7 +184,7 @@ void* ReallocMem(void* p, size_t newSize) {
             return genericRealloc(MemType_QTMRAM, p, newSize);
 #endif // CTR11_ENABLE_QTMRAM
         default:
-            CTR_UNREACHABLE("Invalid memory type");
+            CTR_LOG_LOCATION("Invalid memory type");
     }
 }
 
@@ -193,7 +193,7 @@ MemType GetMemType(const void* p) {
 
     // TODO: check this.
     if (addr >= AXI_RAM_BASE && addr < A11_HEAP_END)
-        return MemType_Virtual;
+        return MemType_Application;
 
     if (addr >= FCRAM_BASE && addr < (FCRAM_BASE + FCRAM_SIZE + FCRAM_EXT_SIZE))
         return MemType_FCRAM;
@@ -206,7 +206,8 @@ MemType GetMemType(const void* p) {
         return MemType_QTMRAM;
 #endif // CTR11_ENABLE_QTMRAM
 
-    CTR_UNREACHABLE("Invalid address: 0x%08X", addr);
+    CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
+    return MemType_Unknown;
 }
 
 VRAMBank GetVRAMBank(const void* p) {
@@ -218,12 +219,13 @@ VRAMBank GetVRAMBank(const void* p) {
     if (addr >= VRAM_BANK1 && addr < (VRAM_BANK1 + VRAM_BANK_SIZE))
         return VRAMBank_B;
 
-    CTR_UNREACHABLE("Invalid address: 0x%08X", addr);
+    CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
+    return VRAMBank_Unknown;
 }
 
 size_t GetAllocSize(const void* p) {
     switch (GetMemType(p)) {
-        case MemType_Virtual:
+        case MemType_Application:
             return malloc_usable_size((void*)p);
         case MemType_FCRAM:
             return fcramGetSize((void*)p);
@@ -234,7 +236,8 @@ size_t GetAllocSize(const void* p) {
             return qtmramGetSize(p);
 #endif // CTR11_ENABLE_QTMRAM
         default:
-            CTR_UNREACHABLE("Invalid memory type");
+            CTR_LOG_LOCATION("Invalid memory type");
+            return 0;
     }
 }
 
@@ -277,7 +280,7 @@ void ReleaseMutex(Mutex m) {
 }
 
 CV CreateCV(void)  {
-    CV cv = AllocMem(MemType_Virtual, sizeof(*cv));
+    CV cv = AllocMem(MemType_Application, sizeof(*cv));
     CTR_BREAK_IF(cv == NULL);
     cv->sema = createSemaphore(0);
     CTR_BREAK_IF(!cv->sema);
