@@ -193,32 +193,37 @@ void* ReallocMem(void* p, size_t newSize) {
     }
 }
 
-MemType GetMemType(const void* p) {
+static inline bool checkRange(u32 p, size_t size, u32 rangeBase, size_t rangeSize) {
+    const size_t offset = p - rangeBase;
+    return p >= rangeBase && offset < rangeSize && (rangeSize - offset) > size;
+}
+
+MemType GetMemType(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
-    // TODO: check this.
-    if (addr >= AXI_RAM_BASE && addr < A11_HEAP_END)
+    if (checkRange(addr, size, AXI_RAM_BASE, AXI_RAM_SIZE))
         return MemType_Application;
 
-    if (addr >= FCRAM_BASE && addr < (FCRAM_BASE + FCRAM_SIZE + FCRAM_EXT_SIZE))
+    if (checkRange(addr, size, FCRAM_BASE, FCRAM_SIZE + FCRAM_EXT_SIZE))
         return MemType_FCRAM;
 
-    if (addr >= VRAM_BASE && addr < (VRAM_BASE + VRAM_SIZE))
+    if (checkRange(addr, size, VRAM_BASE, VRAM_SIZE))
         return MemType_VRAM;
-    if (addr >= QTM_RAM_BASE && addr < (QTM_RAM_BASE + QTM_RAM_SIZE))
+
+    if (checkRange(addr, size, QTM_RAM_BASE, QTM_RAM_SIZE))
         return MemType_QTMRAM;
 
     CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
     return MemType_Unknown;
 }
 
-VRAMBank GetVRAMBank(const void* p) {
+VRAMBank GetVRAMBank(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
-    if (addr >= VRAM_BANK0 && addr < (VRAM_BANK0 + VRAM_BANK_SIZE))
+    if (checkRange(addr, size, VRAM_BANK0, VRAM_BANK_SIZE))
         return VRAMBank_A;
 
-    if (addr >= VRAM_BANK1 && addr < (VRAM_BANK1 + VRAM_BANK_SIZE))
+    if (checkRange(addr, size, VRAM_BANK1, VRAM_BANK_SIZE))
         return VRAMBank_B;
 
     CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
@@ -226,7 +231,7 @@ VRAMBank GetVRAMBank(const void* p) {
 }
 
 size_t GetAllocSize(const void* p) {
-    switch (GetMemType(p)) {
+    switch (GetMemType(p, 0)) {
         case MemType_Application:
             return malloc_usable_size((void*)p);
         case MemType_FCRAM:
@@ -246,26 +251,23 @@ size_t GetAllocSize(const void* p) {
 uintptr_t GetPhysicalAddress(const void* addr) { return (uintptr_t)addr; }
 void* GetVirtualAddress(uintptr_t addr) { return (void*)addr; }
 
-static inline bool checkRange(uintptr_t p, size_t size, uintptr_t rangeBase, size_t rangeSize) {
-    const size_t offset = p - rangeBase;
-    return p >= rangeBase && offset < rangeSize && (rangeSize - offset) > size;
-}
-
 bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
+    const u32 addr = (u32)p;
+
     // Everything is mapped as RW.
     const uint32_t sharedAccess = MemAccess_Read | MemAccess_Write;
 
     // TODO: check this.
-    bool b = checkRange((uintptr_t)p, size, AXI_RAM_BASE, A11_HEAP_END) ||
-        checkRange((uintptr_t)p, size, FCRAM_BASE, FCRAM_SIZE + FCRAM_EXT_SIZE) ||
-        checkRange((uintptr_t)p, size, VRAM_BASE, VRAM_SIZE);
+    bool b = checkRange(addr, size, AXI_RAM_BASE, AXI_RAM_SIZE) ||
+        checkRange(addr, size, FCRAM_BASE, FCRAM_SIZE + FCRAM_EXT_SIZE) ||
+        checkRange(addr, size, VRAM_BASE, VRAM_SIZE);
 
 #ifdef CTR11_ENABLE_QTMRAM
     if (!b) {
         uintptr_t qtmramBase = 0;
         size_t qtmramSize = 0;
         qtmramQueryRegion(&qtmramBase, &qtmramSize);
-        b = checkRange((uintptr_t)p, size, qtmramBase, qtmramSize);
+        b = checkRange(addr, size, qtmramBase, qtmramSize);
     }
 #endif // CTR11_ENABLE_QTMRAM
 
@@ -276,6 +278,8 @@ bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
 }
 
 bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
+    const u32 addr = (u32)p;
+
     // If it's accessible GPU has RW access.
     const uint32_t sharedAccess = MemAccess_Read | MemAccess_Write;
 
@@ -288,13 +292,12 @@ bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
     const size_t fcramSize = FCRAM_SIZE - (fcramFactor * 0x800000);
     const size_t fcramExtSize = FCRAM_EXT_SIZE - (fcramExtFactor * 0x800000);
 
-    // TODO: check this.
-    bool b = axiwramCutoff && checkRange((uintptr_t)p, size, AXI_RAM_BASE, A11_HEAP_END);
+    bool b = axiwramCutoff && checkRange(addr, size, AXI_RAM_BASE, AXI_RAM_SIZE);
 
     if (!b) {
-        b = checkRange((uintptr_t)p, size, FCRAM_BASE, fcramSize) ||
-            checkRange((uintptr_t)p, size, FCRAM_EXT_BASE, fcramExtSize) ||
-            checkRange((uintptr_t)p, size, VRAM_BASE, VRAM_SIZE);
+        b = checkRange(addr, size, FCRAM_BASE, fcramSize) ||
+            checkRange(addr, size, FCRAM_EXT_BASE, fcramExtSize) ||
+            checkRange(addr, size, VRAM_BASE, VRAM_SIZE);
     }
 
 #ifdef CTR11_ENABLE_QTMRAM
@@ -302,7 +305,7 @@ bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
         uintptr_t qtmramBase = 0;
         size_t qtmramSize = 0;
         qtmramQueryRegion(&qtmramBase, &qtmramSize);
-        b = checkRange((uintptr_t)p, size, qtmramBase, qtmramSize);
+        b = checkRange(addr, size, qtmramBase, qtmramSize);
     }
 #endif // CTR11_ENABLE_QTMRAM
 

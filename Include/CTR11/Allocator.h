@@ -44,14 +44,14 @@ void FreeMem(void* p);
 // newSize == 0 frees the buffer. VRAM reallocation doesn't retain content.
 void* ReallocMem(void* p, size_t newSize);
 
-MemType GetMemType(const void* p);
-VRAMBank GetVRAMBank(const void* p);
+MemType GetMemType(const void* p, size_t size);
+VRAMBank GetVRAMBank(const void* p, size_t size);
 size_t GetAllocSize(const void* p);
 
-CTR_INLINE bool IsMemApplication(const void* p) { return GetMemType(p) == MemType_Application; }
-CTR_INLINE bool IsMemFCRAM(const void* p) { return GetMemType(p) == MemType_FCRAM; }
-CTR_INLINE bool IsMemVRAM(const void* p) { return GetMemType(p) == MemType_VRAM; }
-CTR_INLINE bool IsMemQTMRAM(const void* p) { return GetMemType(p) == MemType_QTMRAM; }
+CTR_INLINE bool IsMemApplication(const void* p, size_t size) { return GetMemType(p, size) == MemType_Application; }
+CTR_INLINE bool IsMemFCRAM(const void* p, size_t size) { return GetMemType(p, size) == MemType_FCRAM; }
+CTR_INLINE bool IsMemVRAM(const void* p, size_t size) { return GetMemType(p, size) == MemType_VRAM; }
+CTR_INLINE bool IsMemQTMRAM(const void* p, size_t size) { return GetMemType(p, size) == MemType_QTMRAM; }
 
 uintptr_t GetPhysicalAddress(const void* addr);
 void* GetVirtualAddress(uintptr_t addr);

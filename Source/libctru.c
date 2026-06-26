@@ -117,7 +117,7 @@ void FreeMem(void* p) {
     if (!p)
         return;
 
-    switch (GetMemType(p)) {
+    switch (GetMemType(p, 0)) {
         case MemType_Application:
             free(p);
             break;
@@ -149,7 +149,7 @@ static void* genericRealloc(MemType type, void* p, size_t size) {
 }
 
 static inline void* vramReallocCustom(void* p, size_t newSize) {
-    const VRAMBank bank = GetVRAMBank(p);
+    const VRAMBank bank = GetVRAMBank(p, 0);
 
     // If the new size is less than the old size, reallocation must succeed.
     const size_t oldSize = GetAllocSize(p);
@@ -177,7 +177,7 @@ void* ReallocMem(void* p, size_t newSize) {
         return NULL;
     }
 
-    switch (GetMemType(p)) {
+    switch (GetMemType(p, 0)) {
         case MemType_Application:
             return realloc(p, newSize);
         case MemType_FCRAM:
@@ -193,33 +193,38 @@ void* ReallocMem(void* p, size_t newSize) {
     }
 }
 
-MemType GetMemType(const void* p) {
+static inline bool checkRange(u32 p, size_t size, u32 rangeBase, size_t rangeSize) {
+    const size_t offset = p - rangeBase;
+    return p >= rangeBase && offset < rangeSize && (rangeSize - offset) > size;
+}
+
+MemType GetMemType(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
-    if (addr >= OS_HEAP_AREA_BEGIN && addr < OS_HEAP_AREA_END)
+    if (checkRange(addr, size, OS_HEAP_AREA_BEGIN, OS_HEAP_AREA_END))
         return MemType_Application;
 
-    if (addr >= OS_FCRAM_VADDR && addr < (OS_FCRAM_VADDR + OS_FCRAM_SIZE))
+    if (checkRange(addr, size, OS_FCRAM_VADDR, OS_FCRAM_SIZE))
         return MemType_FCRAM;
 
-    if (addr >= OS_VRAM_VADDR && addr < (OS_VRAM_VADDR + OS_VRAM_SIZE))
+    if (checkRange(addr, size, OS_VRAM_VADDR, OS_VRAM_SIZE))
         return MemType_VRAM;
 
-    if (addr >= OS_QTMRAM_VADDR && addr < (OS_QTMRAM_VADDR + OS_QTMRAM_SIZE))
+    if (checkRange(addr, size, OS_QTMRAM_VADDR, OS_QTMRAM_SIZE))
         return MemType_QTMRAM;
 
     CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
     return MemType_Unknown;
 }
 
-VRAMBank GetVRAMBank(const void* p) {
+VRAMBank GetVRAMBank(const void* p, size_t size) {
     const size_t bankSize = OS_VRAM_SIZE / 2;
     const u32 addr = (u32)p;
 
-    if (addr >= OS_VRAM_VADDR && addr < (OS_VRAM_VADDR + bankSize))
+    if (checkRange(addr, size, OS_VRAM_VADDR, bankSize))
         return VRAMBank_A;
 
-    if (addr >= (OS_VRAM_VADDR + bankSize) && addr < (OS_VRAM_VADDR + bankSize * 2))
+    if (checkRange(addr, size, OS_VRAM_VADDR + bankSize, bankSize))
         return VRAMBank_B;
 
     CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
@@ -227,7 +232,7 @@ VRAMBank GetVRAMBank(const void* p) {
 }
 
 size_t GetAllocSize(const void* p) {
-    switch (GetMemType(p)) {
+    switch (GetMemType(p, 0)) {
         case MemType_Application:
             return malloc_usable_size((void*)p);
         case MemType_FCRAM:
@@ -263,24 +268,21 @@ void* GetVirtualAddress(uintptr_t addr) {
     return NULL;
 }
 
-static inline bool checkRange(uintptr_t p, size_t size, uintptr_t rangeBase, size_t rangeSize) {
-    const size_t offset = p - rangeBase;
-    return p >= rangeBase && offset < rangeSize && (rangeSize - offset) > size;
-}
-
 bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
+    const u32 addr = (u32)p;
+
     // These two are fixed.
     const uint32_t heapAccess = MemAccess_Read | MemAccess_Write;
     const uint32_t fcramAccess = MemAccess_Read | MemAccess_Write;
 
-    if (checkRange((uintptr_t)p, size, __ctru_heap, __ctru_heap_size))
+    if (checkRange(addr, size, __ctru_heap, __ctru_heap_size))
         return (access & heapAccess) == access;
 
-    if (checkRange((uintptr_t)p, size, __ctru_linear_heap, __ctru_linear_heap_size))
+    if (checkRange(addr, size, __ctru_linear_heap, __ctru_linear_heap_size))
         return (access & fcramAccess) == access;
 
     // VRAM access depends on the ExHeader.
-    if (checkRange((uintptr_t)p, size, OS_VRAM_VADDR, OS_VRAM_SIZE)) {
+    if (checkRange(addr, size, OS_VRAM_VADDR, OS_VRAM_SIZE)) {
         MemInfo memInfo;
         PageInfo pageInfo;
 
@@ -303,7 +305,7 @@ bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
     qtmramQueryRegion(&qtmramBase, &qtmramSize);
 
     // QTMRAM access depends on the ExHeader.
-    if (checkRange((uintptr_t)p, size, qtmramBase, qtmramSize)) {
+    if (checkRange(addr, size, qtmramBase, qtmramSize)) {
         MemInfo memInfo;
         PageInfo pageInfo;
 
@@ -325,18 +327,20 @@ bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
 }
 
 bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
+    const u32 addr = (u32)p;
+
     // If it's accessible GPU has RW access.
     const uint32_t sharedAccess = MemAccess_Read | MemAccess_Write;
 
-    bool b = checkRange((uintptr_t)p, size, OS_VRAM_VADDR, OS_VRAM_SIZE) ||
-        checkRange((uintptr_t)p, size, __ctru_linear_heap, __ctru_linear_heap_size);
+    bool b = checkRange(addr, size, OS_VRAM_VADDR, OS_VRAM_SIZE) ||
+        checkRange(addr, size, __ctru_linear_heap, __ctru_linear_heap_size);
 
 #ifdef CTR11_ENABLE_QTMRAM
     if (!b) {
         uintptr_t qtmramBase = 0;
         size_t qtmramSize = 0;
         qtmramQueryRegion(&qtmramBase, &qtmramSize);
-        b = checkRange((uintptr_t)p, size, qtmramBase, qtmramSize);
+        b = checkRange(addr, size, qtmramBase, qtmramSize);
     }
 #endif // CTR11_ENABLE_QTMRAM
 
