@@ -20,6 +20,11 @@
 #include <malloc.h>
 #include <string.h>
 
+extern u32 __ctru_heap;
+extern u32 __ctru_linear_heap;
+extern u32 __ctru_heap_size;
+extern u32 __ctru_linear_heap_size;
+
 // CTR_BREAK
 
 void impl_ctr11_break(void) {
@@ -200,10 +205,8 @@ MemType GetMemType(const void* p) {
     if (addr >= OS_VRAM_VADDR && addr < (OS_VRAM_VADDR + OS_VRAM_SIZE))
         return MemType_VRAM;
 
-#ifdef CTR11_ENABLE_QTMRAM
     if (addr >= OS_QTMRAM_VADDR && addr < (OS_QTMRAM_VADDR + OS_QTMRAM_SIZE))
         return MemType_QTMRAM;
-#endif // CTR11_ENABLE_QTMRAM
 
     CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
     return MemType_Unknown;
@@ -258,6 +261,89 @@ void* GetVirtualAddress(uintptr_t addr) {
 
 #undef CONVERT_REGION
     return NULL;
+}
+
+static inline bool checkRange(uintptr_t p, size_t size, uintptr_t rangeBase, size_t rangeSize) {
+    const size_t offset = p - rangeBase;
+    return p >= rangeBase && offset < rangeSize && (rangeSize - offset) > size;
+}
+
+bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
+    // These two are fixed.
+    const uint32_t heapAccess = MemAccess_Read | MemAccess_Write;
+    const uint32_t fcramAccess = MemAccess_Read | MemAccess_Write;
+
+    if (checkRange((uintptr_t)p, size, __ctru_heap, __ctru_heap_size))
+        return (access & heapAccess) == access;
+
+    if (checkRange((uintptr_t)p, size, __ctru_linear_heap, __ctru_linear_heap_size))
+        return (access & fcramAccess) == access;
+
+    // VRAM access depends on the ExHeader.
+    if (checkRange((uintptr_t)p, size, OS_VRAM_VADDR, OS_VRAM_SIZE)) {
+        MemInfo memInfo;
+        PageInfo pageInfo;
+
+        CTR_BREAK_IF(R_FAILED(svcQueryMemory(&memInfo, &pageInfo, (u32)p)));
+
+        uint32_t vramAccess = 0;
+        
+        if (memInfo.perm & MEMPERM_READ)
+            vramAccess |= MemAccess_Read;
+
+        if (memInfo.perm & MEMPERM_WRITE)
+            vramAccess |= MemAccess_Write;
+
+        return (access & vramAccess) == access;
+    }
+    
+#ifdef CTR11_ENABLE_QTMRAM
+    uintptr_t qtmramBase = 0;
+    size_t qtmramSize = 0;
+    qtmramQueryRegion(&qtmramBase, &qtmramSize);
+
+    // QTMRAM access depends on the ExHeader.
+    if (checkRange((uintptr_t)p, size, qtmramBase, qtmramSize)) {
+        MemInfo memInfo;
+        PageInfo pageInfo;
+
+        CTR_BREAK_IF(R_FAILED(svcQueryMemory(&memInfo, &pageInfo, (u32)p)));
+
+        uint32_t qtmramAccess = 0;
+        
+        if (memInfo.perm & MEMPERM_READ)
+            qtmramAccess |= MemAccess_Read;
+
+        if (memInfo.perm & MEMPERM_WRITE)
+            qtmramAccess |= MemAccess_Write;
+
+        return (access & qtmramAccess) == access;
+    }
+#endif // CTR11_ENABLE_QTMRAM
+
+    return false;
+}
+
+bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
+    // If it's accessible GPU has RW access.
+    const uint32_t sharedAccess = MemAccess_Read | MemAccess_Write;
+
+    bool b = checkRange((uintptr_t)p, size, OS_VRAM_VADDR, OS_VRAM_SIZE) ||
+        checkRange((uintptr_t)p, size, __ctru_linear_heap, __ctru_linear_heap_size);
+
+#ifdef CTR11_ENABLE_QTMRAM
+    if (!b) {
+        uintptr_t qtmramBase = 0;
+        size_t qtmramSize = 0;
+        qtmramQueryRegion(&qtmramBase, &qtmramSize);
+        b = checkRange((uintptr_t)p, size, qtmramBase, qtmramSize);
+    }
+#endif // CTR11_ENABLE_QTMRAM
+
+    if (b)
+        b = (access & sharedAccess) == access;
+
+    return b;
 }
 
 // Cache

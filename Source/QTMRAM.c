@@ -53,7 +53,7 @@ static bool lazyInit(void) {
 }
 
 static void* insertNode(uintptr_t base, size_t size) {
-    MemoryBlock* b = (MemoryBlock*)AllocMem(MemType_Virtual, sizeof(MemoryBlock));
+    MemoryBlock* b = (MemoryBlock*)AllocMem(MemType_Application, sizeof(MemoryBlock));
     if (b) {
         b->base = base;
         b->size = size;
@@ -62,6 +62,14 @@ static void* insertNode(uintptr_t base, size_t size) {
     }
 
     return NULL;
+}
+
+void qtmramQueryRegion(uintptr_t* regionBase, size_t* regionSize) {
+    if (regionBase)
+        *regionBase = g_AllocBase;
+
+    if (regionSize)
+        *regionSize = g_MaxAllocSize;
 }
 
 void* qtmramMemAlign(size_t size, size_t alignment) {

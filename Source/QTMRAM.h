@@ -12,6 +12,7 @@
 #include <CTR11/Defs.h>
 
 bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize);
+void qtmramQueryRegion(uintptr_t* regionBase, size_t* regionSize);
 void* qtmramMemAlign(size_t size, size_t alignment);
 
 CTR_INLINE void* qtmramAlloc(size_t size) { return qtmramMemAlign(size, 0); }

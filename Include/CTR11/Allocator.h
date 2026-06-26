@@ -18,6 +18,11 @@ typedef enum {
 } MemType;
 
 typedef enum {
+    MemAccess_Read = 0x01,
+    MemAccess_Write = 0x02,
+} MemAccess;
+
+typedef enum {
     VRAMBank_A,
     VRAMBank_B,
     VRAMBank_Any,
@@ -50,6 +55,9 @@ CTR_INLINE bool IsMemQTMRAM(const void* p) { return GetMemType(p) == MemType_QTM
 
 uintptr_t GetPhysicalAddress(const void* addr);
 void* GetVirtualAddress(uintptr_t addr);
+
+bool IsCPUAccessible(const void* p, size_t size, uint32_t access);
+bool IsGPUAccessible(const void* p, size_t size, uint32_t access);
 
 #ifdef __cplusplus
 }

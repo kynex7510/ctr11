@@ -10,6 +10,7 @@
 #include <arm11/fmt.h>
 #include <arm11/allocator/fcram.h>
 #include <arm11/allocator/vram.h>
+#include <arm11/drivers/cfg11.h>
 #include <drivers/cache.h>
 #include <kmutex.h>
 #include <ksemaphore.h>
@@ -46,9 +47,13 @@ void impl_ctr11_vlog(const char* fmt, va_list args) {
 
 bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize) {
     // TODO: mmu checks?
-    // TODO: enable GPU access and stuff
+
+    const u16 gpuprot = getCfg11Regs()->gpuprot;
+    const u8 qtmramFactor = (gpuprot >> 9) & 0x03;
+    const size_t qtmramSize = QTM_RAM_SIZE - (qtmramFactor * 0x100000);
+    
     *regionBase = QTM_RAM_BASE;
-    *regionSize = QTM_RAM_SIZE;
+    *regionSize = qtmramSize;
     return true;
 }
 
@@ -200,11 +205,8 @@ MemType GetMemType(const void* p) {
 
     if (addr >= VRAM_BASE && addr < (VRAM_BASE + VRAM_SIZE))
         return MemType_VRAM;
-
-#ifdef CTR11_ENABLE_QTMRAM
     if (addr >= QTM_RAM_BASE && addr < (QTM_RAM_BASE + QTM_RAM_SIZE))
         return MemType_QTMRAM;
-#endif // CTR11_ENABLE_QTMRAM
 
     CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
     return MemType_Unknown;
@@ -243,6 +245,72 @@ size_t GetAllocSize(const void* p) {
 
 uintptr_t GetPhysicalAddress(const void* addr) { return (uintptr_t)addr; }
 void* GetVirtualAddress(uintptr_t addr) { return (void*)addr; }
+
+static inline bool checkRange(uintptr_t p, size_t size, uintptr_t rangeBase, size_t rangeSize) {
+    const size_t offset = p - rangeBase;
+    return p >= rangeBase && offset < rangeSize && (rangeSize - offset) > size;
+}
+
+bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
+    // Everything is mapped as RW.
+    const uint32_t sharedAccess = MemAccess_Read | MemAccess_Write;
+
+    // TODO: check this.
+    bool b = checkRange((uintptr_t)p, size, AXI_RAM_BASE, A11_HEAP_END) ||
+        checkRange((uintptr_t)p, size, FCRAM_BASE, FCRAM_SIZE + FCRAM_EXT_SIZE) ||
+        checkRange((uintptr_t)p, size, VRAM_BASE, VRAM_SIZE);
+
+#ifdef CTR11_ENABLE_QTMRAM
+    if (!b) {
+        uintptr_t qtmramBase = 0;
+        size_t qtmramSize = 0;
+        qtmramQueryRegion(&qtmramBase, &qtmramSize);
+        b = checkRange((uintptr_t)p, size, qtmramBase, qtmramSize);
+    }
+#endif // CTR11_ENABLE_QTMRAM
+
+    if (b)
+        b = (access & sharedAccess) == access;
+
+    return b;
+}
+
+bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
+    // If it's accessible GPU has RW access.
+    const uint32_t sharedAccess = MemAccess_Read | MemAccess_Write;
+
+    const u16 gpuprot = getCfg11Regs()->gpuprot;
+
+    const u8 fcramFactor = gpuprot & 0x0F;
+    const u8 fcramExtFactor = (gpuprot >> 4) & 0x0F;
+    const bool axiwramCutoff = (gpuprot >> 8) & 0x01;
+
+    const size_t fcramSize = FCRAM_SIZE - (fcramFactor * 0x800000);
+    const size_t fcramExtSize = FCRAM_EXT_SIZE - (fcramExtFactor * 0x800000);
+
+    // TODO: check this.
+    bool b = axiwramCutoff && checkRange((uintptr_t)p, size, AXI_RAM_BASE, A11_HEAP_END);
+
+    if (!b) {
+        b = checkRange((uintptr_t)p, size, FCRAM_BASE, fcramSize) ||
+            checkRange((uintptr_t)p, size, FCRAM_EXT_BASE, fcramExtSize) ||
+            checkRange((uintptr_t)p, size, VRAM_BASE, VRAM_SIZE);
+    }
+
+#ifdef CTR11_ENABLE_QTMRAM
+    if (!b) {
+        uintptr_t qtmramBase = 0;
+        size_t qtmramSize = 0;
+        qtmramQueryRegion(&qtmramBase, &qtmramSize);
+        b = checkRange((uintptr_t)p, size, qtmramBase, qtmramSize);
+    }
+#endif // CTR11_ENABLE_QTMRAM
+
+    if (b)
+        b = (access & sharedAccess) == access;
+
+    return b;
+}
 
 // Cache
 
