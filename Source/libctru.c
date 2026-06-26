@@ -190,6 +190,7 @@ void* ReallocMem(void* p, size_t newSize) {
 #endif // CTR11_ENABLE_QTMRAM
         default:
             CTR_LOG_LOCATION("Invalid memory type");
+            return NULL;
     }
 }
 
@@ -353,15 +354,11 @@ bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
 // Cache
 
 void InvalidateDataCache(const void* addr, size_t size) {
-    if (!IsMemVirtual(addr)) {
-        CTR_BREAK_IF(R_FAILED(svcInvalidateProcessDataCache(CUR_PROCESS_HANDLE, (u32)addr, size)));
-    }
+    CTR_BREAK_IF(R_FAILED(svcInvalidateProcessDataCache(CUR_PROCESS_HANDLE, (u32)addr, size)));
 }
 
 void FlushDataCache(const void* addr, size_t size) {
-    if (!IsMemVirtual(addr)) {
-        CTR_BREAK_IF(R_FAILED(svcFlushProcessDataCache(CUR_PROCESS_HANDLE, (u32)addr, size)));
-    }
+    CTR_BREAK_IF(R_FAILED(svcFlushProcessDataCache(CUR_PROCESS_HANDLE, (u32)addr, size)));
 }
 
 // Sync

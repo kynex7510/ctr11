@@ -117,7 +117,7 @@ void FreeMem(void* p) {
     if (!p)
         return;
 
-    switch (GetMemType(p)) {
+    switch (GetMemType(p, 0)) {
         case MemType_Application:
             free(p);
             break;
@@ -149,7 +149,7 @@ static void* genericRealloc(MemType type, void* p, size_t size) {
 }
 
 static inline void* vramReallocCustom(void* p, size_t newSize) {
-    const VRAMBank bank = GetVRAMBank(p);
+    const VRAMBank bank = GetVRAMBank(p, 0);
 
     // If the new size is less than the old size, reallocation must succeed.
     const size_t oldSize = GetAllocSize(p);
@@ -177,7 +177,7 @@ void* ReallocMem(void* p, size_t newSize) {
         return NULL;
     }
 
-    switch (GetMemType(p)) {
+    switch (GetMemType(p, 0)) {
         case MemType_Application:
             return realloc(p, newSize);
         case MemType_FCRAM:
@@ -190,6 +190,7 @@ void* ReallocMem(void* p, size_t newSize) {
 #endif // CTR11_ENABLE_QTMRAM
         default:
             CTR_LOG_LOCATION("Invalid memory type");
+            return NULL;
     }
 }
 
