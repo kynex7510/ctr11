@@ -7,7 +7,7 @@
 #ifndef GUARD_CTR11_QTMRAM_H
 #define GUARD_CTR11_QTMRAM_H
 
-#ifdef CTR11_ENABLE_QTMRAM
+#ifdef CTR_ENABLE_QTMRAM
 
 #include <CTR11/Defs.h>
 
@@ -20,6 +20,6 @@ CTR_INLINE void* qtmramAlloc(size_t size) { return qtmramMemAlign(size, 0); }
 void qtmramFree(void* p);
 size_t qtmramGetSize(const void* p);
 
-#endif // CTR11_ENABLE_QTMRAM
+#endif // CTR_ENABLE_QTMRAM
 
 #endif // GUARD_CTR11_QTMRAM_H

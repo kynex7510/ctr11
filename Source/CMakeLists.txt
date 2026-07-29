@@ -4,7 +4,7 @@ if (CTR_BM)
 endif()
 
 # Setup library.
-if (CTR11_ENABLE_QTMRAM)
+if (CTR_ENABLE_QTMRAM)
     set(CTR11_SOURCES QTMRAM.c)
 endif()
 
@@ -23,8 +23,8 @@ endif()
 target_include_directories(ctr11 PUBLIC ../Include PRIVATE .)
 target_compile_options(ctr11 PRIVATE -Wall -Werror)
 
-if (CTR11_ENABLE_QTMRAM)
-    target_compile_definitions(ctr11 PRIVATE CTR11_ENABLE_QTMRAM)
+if (CTR_ENABLE_QTMRAM)
+    target_compile_definitions(ctr11 PRIVATE CTR_ENABLE_QTMRAM)
 endif()
 
 install(TARGETS ctr11)

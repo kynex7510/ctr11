@@ -41,7 +41,7 @@ void impl_ctr11_vlog(const char* fmt, va_list args) {
 
 // Allocator
 
-#ifdef CTR11_ENABLE_QTMRAM
+#ifdef CTR_ENABLE_QTMRAM
 
 bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize) {
     s64 base = 0;
@@ -57,7 +57,7 @@ bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize) {
     return base && size;
 }
 
-#endif // CTR11_ENABLE_QTMRAM
+#endif // CTR_ENABLE_QTMRAM
 
 void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
     if (!alignment) {
@@ -68,10 +68,10 @@ void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
                 return linearAlloc(size);
             case MemType_VRAM:
                 return vramAlloc(size);
-#ifdef CTR11_ENABLE_QTMRAM
+#ifdef CTR_ENABLE_QTMRAM
             case MemType_QTMRAM:
                 return qtmramAlloc(size);
-#endif // CTR11_ENABLE_QTMRAM
+#endif // CTR_ENABLE_QTMRAM
             default:
                 CTR_UNREACHABLE("Invalid memory type");
         }
@@ -84,10 +84,10 @@ void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
             return linearMemAlign(size, alignment);
         case MemType_VRAM:
             return vramMemAlign(size, alignment);
-#ifdef CTR11_ENABLE_QTMRAM
+#ifdef CTR_ENABLE_QTMRAM
         case MemType_QTMRAM:
             return qtmramMemAlign(size, alignment);
-#endif // CTR11_ENABLE_QTMRAM
+#endif // CTR_ENABLE_QTMRAM
         default:
             CTR_UNREACHABLE("Invalid memory type");
     }
@@ -127,11 +127,11 @@ void FreeMem(void* p) {
         case MemType_VRAM:
             vramFree(p);
             break;
-#ifdef CTR11_ENABLE_QTMRAM
+#ifdef CTR_ENABLE_QTMRAM
         case MemType_QTMRAM:
             qtmramFree(p);
             break;
-#endif // CTR11_ENABLE_QTMRAM
+#endif // CTR_ENABLE_QTMRAM
         default:
             CTR_LOG_LOCATION("Invalid memory type");
     }
@@ -184,10 +184,10 @@ void* ReallocMem(void* p, size_t newSize) {
             return genericRealloc(MemType_FCRAM, p, newSize);
         case MemType_VRAM:
             return vramReallocCustom(p, newSize);
-#ifdef CTR11_ENABLE_QTMRAM
+#ifdef CTR_ENABLE_QTMRAM
         case MemType_QTMRAM:
             return genericRealloc(MemType_QTMRAM, p, newSize);
-#endif // CTR11_ENABLE_QTMRAM
+#endif // CTR_ENABLE_QTMRAM
         default:
             CTR_LOG_LOCATION("Invalid memory type");
             return NULL;
@@ -240,10 +240,10 @@ size_t GetAllocSize(const void* p) {
             return linearGetSize((void*)p);
         case MemType_VRAM:
             return vramGetSize((void*)p);
-#ifdef CTR11_ENABLE_QTMRAM
+#ifdef CTR_ENABLE_QTMRAM
         case MemType_QTMRAM:
             return qtmramGetSize(p);
-#endif // CTR11_ENABLE_QTMRAM
+#endif // CTR_ENABLE_QTMRAM
         default:
             CTR_LOG_LOCATION("Invalid memory type");
             return 0;
@@ -329,7 +329,7 @@ bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
         return (access & vramAccess) == access;
     }
     
-#ifdef CTR11_ENABLE_QTMRAM
+#ifdef CTR_ENABLE_QTMRAM
     uintptr_t qtmramBase = 0;
     size_t qtmramSize = 0;
     qtmramQueryRegion(&qtmramBase, &qtmramSize);
@@ -349,7 +349,7 @@ bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
 
         return (access & qtmramAccess) == access;
     }
-#endif // CTR11_ENABLE_QTMRAM
+#endif // CTR_ENABLE_QTMRAM
 
     return false;
 }
@@ -363,14 +363,14 @@ bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
     bool b = checkRange(addr, size, OS_VRAM_VADDR, OS_VRAM_SIZE) ||
         checkRange(addr, size, __ctru_linear_heap, __ctru_linear_heap_size);
 
-#ifdef CTR11_ENABLE_QTMRAM
+#ifdef CTR_ENABLE_QTMRAM
     if (!b) {
         uintptr_t qtmramBase = 0;
         size_t qtmramSize = 0;
         qtmramQueryRegion(&qtmramBase, &qtmramSize);
         b = checkRange(addr, size, qtmramBase, qtmramSize);
     }
-#endif // CTR11_ENABLE_QTMRAM
+#endif // CTR_ENABLE_QTMRAM
 
     if (b)
         b = (access & sharedAccess) == access;
