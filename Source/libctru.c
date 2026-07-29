@@ -269,6 +269,37 @@ void* GetVirtualAddress(uintptr_t addr) {
     return NULL;
 }
 
+static Result queryRegionAccess(u32 base, size_t size, uint32_t* access) {
+    MemInfo memInfo;
+    PageInfo pageInfo;
+    
+    Result ret = svcQueryMemory(&memInfo, &pageInfo, base);
+    if (R_FAILED(ret))
+        return ret;
+
+    while (memInfo.size < size) {
+        MemInfo tmp;
+        ret = svcQueryMemory(&tmp, &pageInfo, memInfo.base_addr + memInfo.size);
+        if (R_FAILED(ret))
+            return ret;
+
+        if (tmp.state != memInfo.state || tmp.perm != memInfo.perm)
+            break;
+
+        memInfo.size += tmp.size;
+    }
+
+    *access = 0;
+        
+    if (memInfo.perm & MEMPERM_READ)
+        *access |= MemAccess_Read;
+
+    if (memInfo.perm & MEMPERM_WRITE)
+        *access |= MemAccess_Write;
+
+    return 0;
+}
+
 bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
     const u32 addr = (u32)p;
 
@@ -284,18 +315,16 @@ bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
 
     // VRAM access depends on the ExHeader.
     if (checkRange(addr, size, OS_VRAM_VADDR, OS_VRAM_SIZE)) {
-        MemInfo memInfo;
-        PageInfo pageInfo;
+        static uint32_t vramAccess = 0xFFFFFFFF;
 
-        CTR_BREAK_IF(R_FAILED(svcQueryMemory(&memInfo, &pageInfo, (u32)p)));
+        if (vramAccess == 0xFFFFFFFF) {
+            uint32_t tmp;
+            CTR_BREAK_IF(R_FAILED(queryRegionAccess(OS_VRAM_VADDR, OS_VRAM_SIZE, &tmp)));
 
-        uint32_t vramAccess = 0;
-        
-        if (memInfo.perm & MEMPERM_READ)
-            vramAccess |= MemAccess_Read;
-
-        if (memInfo.perm & MEMPERM_WRITE)
-            vramAccess |= MemAccess_Write;
+            do {
+                __ldrex(&vramAccess);
+            } while (__strex(&vramAccess, tmp));
+        }
 
         return (access & vramAccess) == access;
     }
@@ -307,18 +336,16 @@ bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
 
     // QTMRAM access depends on the ExHeader.
     if (checkRange(addr, size, qtmramBase, qtmramSize)) {
-        MemInfo memInfo;
-        PageInfo pageInfo;
+        static uint32_t qtmramAccess = 0xFFFFFFFF;
 
-        CTR_BREAK_IF(R_FAILED(svcQueryMemory(&memInfo, &pageInfo, (u32)p)));
+        if (qtmramAccess == 0xFFFFFFFF) {
+            uint32_t tmp;
+            CTR_BREAK_IF(R_FAILED(queryRegionAccess(qtmramBase, qtmramSize, &tmp)));
 
-        uint32_t qtmramAccess = 0;
-        
-        if (memInfo.perm & MEMPERM_READ)
-            qtmramAccess |= MemAccess_Read;
-
-        if (memInfo.perm & MEMPERM_WRITE)
-            qtmramAccess |= MemAccess_Write;
+            do {
+                __ldrex(&qtmramAccess);
+            } while (__strex(&qtmramAccess, tmp));
+        }
 
         return (access & qtmramAccess) == access;
     }
