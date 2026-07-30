@@ -322,8 +322,8 @@ bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
             CTR_BREAK_IF(R_FAILED(queryRegionAccess(OS_VRAM_VADDR, OS_VRAM_SIZE, &tmp)));
 
             do {
-                __ldrex(&vramAccess);
-            } while (__strex(&vramAccess, tmp));
+                __ldrex((s32*)&vramAccess);
+            } while (__strex((s32*)&vramAccess, tmp));
         }
 
         return (access & vramAccess) == access;
@@ -343,8 +343,8 @@ bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
             CTR_BREAK_IF(R_FAILED(queryRegionAccess(qtmramBase, qtmramSize, &tmp)));
 
             do {
-                __ldrex(&qtmramAccess);
-            } while (__strex(&qtmramAccess, tmp));
+                __ldrex((s32*)&qtmramAccess);
+            } while (__strex((s32*)&qtmramAccess, tmp));
         }
 
         return (access & qtmramAccess) == access;
