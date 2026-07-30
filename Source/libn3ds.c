@@ -34,11 +34,13 @@ void impl_ctr11_break() { panic(); }
 
 // CTR_LOG
 
+ssize_t con_write(const char *ptr, size_t len);
+
 void impl_ctr11_vlog(const char* fmt, va_list args) {
     // TODO: ideally we would like to print to the dspico.
     char buf[256];
     ee_vsnprintf(buf, 256, fmt, args);
-    ee_puts(buf);
+    con_write(buf, strlen(buf));
 }
 
 // Allocator
