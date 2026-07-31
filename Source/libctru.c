@@ -251,23 +251,38 @@ size_t GetAllocSize(const void* p) {
     }
 }
 
-uintptr_t GetPhysicalAddress(const void* addr) { return osConvertVirtToPhys(addr); }
+uintptr_t GetPhysicalAddress(const void* addr) {
+    const uintptr_t p = (uintptr_t)addr;
+
+    switch (GetMemType(addr, 0)) {
+        case MemType_FCRAM:
+            return p - OS_FCRAM_VADDR + OS_FCRAM_PADDR;
+        case MemType_VRAM:
+            return p - OS_VRAM_VADDR + OS_VRAM_PADDR;
+#ifdef CTR_ENABLE_QTMRAM
+        case MemType_QTMRAM:
+            return p - OS_QTMRAM_VADDR + OS_QTMRAM_PADDR;
+#endif // CTR_ENABLE_QTMRAM
+        default:
+            CTR_LOG_LOCATION("Invalid address: 0x%08X", p);
+            return 0;
+    }
+}
 
 void* GetVirtualAddress(uintptr_t addr) {
-#define CONVERT_REGION(_name)                                             \
-    if (addr >= OS_##_name##_PADDR &&                                     \
-        addr < (OS_##_name##_PADDR + OS_##_name##_SIZE))                  \
-        return (void*)(addr - (OS_##_name##_PADDR + OS_##_name##_VADDR));
+    if (checkRange(addr, 0, OS_FCRAM_PADDR, OS_FCRAM_SIZE))
+        return (void*)(addr - OS_FCRAM_PADDR + OS_FCRAM_VADDR);
 
-    CONVERT_REGION(FCRAM);
-    CONVERT_REGION(VRAM);
-    CONVERT_REGION(OLD_FCRAM);
-    CONVERT_REGION(DSPRAM);
-    CONVERT_REGION(QTMRAM);
-    CONVERT_REGION(MMIO);
+    if (checkRange(addr, 0, OS_VRAM_PADDR, OS_VRAM_SIZE))
+        return (void*)(addr - OS_VRAM_PADDR + OS_VRAM_VADDR);
 
-#undef CONVERT_REGION
-    return NULL;
+#ifdef CTR_ENABLE_QTMRAM
+    if (checkRange(addr, 0, OS_QTMRAM_PADDR, OS_QTMRAM_SIZE))
+        return (void*)(addr - OS_QTMRAM_PADDR + OS_QTMRAM_VADDR);
+#endif // CTR_ENABLE_QTMRAM
+
+    CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
+    return 0;
 }
 
 static Result queryRegionAccess(u32 base, size_t size, uint32_t* access) {

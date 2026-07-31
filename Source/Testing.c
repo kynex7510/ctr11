@@ -45,7 +45,7 @@ static void testCallback(size_t index, const TestResult* result) {
     }
 
     // libn3ds doesn't support doubles.
-#if defined(CTR_BM)
+#ifdef CTR_BM
     CTR_LOG(" (%u%s)", (uint32_t)time, timeString);
 #else
     CTR_LOG(" (%.2f%s)", time, timeString);

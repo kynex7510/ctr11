@@ -57,7 +57,7 @@ static bool rangeChecksTest(uint32_t* reason) {
     FAIL_IF(GetAllocSize(p) < allocSize);
     FreeMem(p);
 
-#if defined(CTR_ENABLE_QTMRAM)
+#ifdef CTR_ENABLE_QTMRAM
     p = AllocMem(MemType_QTMRAM, allocSize);
     FAIL_IF(!p);
     FAIL_IF(IsMemApplication(p, allocSize));
@@ -122,7 +122,7 @@ static bool gpuAccessTest(uint32_t* reason) {
 
     FreeMem(p);
 
-#if defined(CTR_ENABLE_QTMRAM)
+#ifdef CTR_ENABLE_QTMRAM
     p = AllocMem(MemType_QTMRAM, allocSize);
     FAIL_IF(!p);
 
@@ -165,7 +165,7 @@ static bool vaToPaTest(uint32_t* reason) {
 
     FreeMem(p);
 
-#if defined(CTR_ENABLE_QTMRAM)
+#ifdef CTR_ENABLE_QTMRAM
     // QTMRAM
     p = AllocMem(MemType_QTMRAM, allocSize);
     FAIL_IF(!p);

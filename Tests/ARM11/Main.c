@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#if defined(CTR_BM)
+#ifdef CTR_BM
 #include <arm11/power.h>
 #include <arm11/console.h>
 #include <arm11/drivers/hid.h>
@@ -14,7 +14,7 @@
 
 #include <CTR11/Testing.h>
 
-#if defined(CTR_BM)
+#ifdef CTR_BM
 int main(int argc, char* argv[]) {
     GFX_init(GFX_BGR565, GFX_BGR565, GFX_TOP_2D);
     GFX_setLcdLuminance(100);

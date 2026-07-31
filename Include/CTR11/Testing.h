@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#if defined(CTR_ENABLE_TESTING)
+#ifdef CTR_ENABLE_TESTING
 
 #define CTR_TEST(name, func) \
     __attribute__((section("ctrtests"))) const TestEntry g_TestEntry_##name = { #name, func }
