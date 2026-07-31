@@ -12,6 +12,7 @@
 #include <CTR11/Allocator.h>
 #include <CTR11/Sync.h>
 #include <CTR11/Unreachable.h>
+#include <CTR11/Tick.h>
 
 #include "QTMRAM.h"
 
@@ -441,4 +442,32 @@ void NotifyCV(CV cv, size_t count) {
 void BroadcastCV(CV cv) {
     CTR_ASSERT(cv);
     CondVar_Broadcast((CondVar*)cv);
+}
+
+// Tick
+
+void TickTimerStart(TickTimer* t) {
+    CTR_ASSERT(t);
+    *t = svcGetSystemTick();
+}
+
+uint64_t TickTimerStop(TickTimer* t) {
+    CTR_ASSERT(t);
+
+    const uint64_t invalid = (uint64_t)-1;
+    if (*t != invalid) {
+        const uint64_t delta = svcGetSystemTick() - *t;
+        *t = invalid;
+        return delta;
+    }
+
+    return 0;
+}
+
+uint64_t TickTimerInterval(TickTimer* t) {
+    CTR_ASSERT(t);
+    const uint64_t newp = svcGetSystemTick();
+    const uint64_t delta = newp - *t;
+    *t = newp;
+    return delta;
 }

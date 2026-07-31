@@ -11,6 +11,7 @@
 #include <arm11/allocator/fcram.h>
 #include <arm11/allocator/vram.h>
 #include <arm11/drivers/cfg11.h>
+#include <arm11/drivers/timer.h>
 #include <drivers/cache.h>
 #include <kmutex.h>
 #include <ksemaphore.h>
@@ -21,6 +22,7 @@
 #include <CTR11/Allocator.h>
 #include <CTR11/Sync.h>
 #include <CTR11/Unreachable.h>
+#include <CTR11/Tick.h>
 
 #include "QTMRAM.h"
 
@@ -402,4 +404,33 @@ void NotifyCV(CV cv, size_t count) {
 void BroadcastCV(CV cv) {
     CTR_ASSERT(cv);
     NotifyCV(cv, UINT32_MAX);
+}
+
+// Tick
+
+void TickTimerStart(TickTimer* t) {
+    CTR_ASSERT(t);
+    // With a prescaler value of 1 the timer decrements every 2 clock cycles.
+    TIMER_start(1, 0xFFFFFFFFu, TIMER_SINGLE_SHOT);
+    *t = 0xFFFFFFFF;
+}
+
+uint64_t TickTimerStop(TickTimer* t) {
+    CTR_ASSERT(t);
+
+    if (*t) {
+        const uint64_t delta = (*t - TIMER_stop()) << 1;
+        *t = 0;
+        return delta;
+    }
+
+    return 0;
+}
+
+uint64_t TickTimerInterval(TickTimer* t) {
+    CTR_ASSERT(t);
+    const uint64_t newp = TIMER_getTicks();
+    const uint64_t delta = (*t - newp) << 1;
+    *t = newp;
+    return delta;
 }
