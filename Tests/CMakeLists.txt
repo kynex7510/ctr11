@@ -1,0 +1,18 @@
+add_subdirectory(ARM11)
+
+if (CTR_BM)
+    add_subdirectory(ARM9)
+
+    set(ARM9_LOAD_ADDRESS 0x08000040)
+    set(ARM9_ENTRYPOINT 0x08000040)
+    set(ARM9_COPY_METHOD NDMA)
+
+    set(ARM11_LOAD_ADDRESS 0x1FF89000)
+    set(ARM11_ENTRYPOINT 0x1FF89034)
+    set(ARM11_COPY_METHOD XDMA)
+
+    ctr_bm_make_firm(ctr11-testsFIRM
+        ARM9 Common9_bin ${ARM9_LOAD_ADDRESS} ${ARM9_ENTRYPOINT} ${ARM9_COPY_METHOD}
+        ARM11 ctr11-tests_bin ${ARM11_LOAD_ADDRESS} ${ARM11_ENTRYPOINT} ${ARM11_COPY_METHOD}
+    )
+endif()

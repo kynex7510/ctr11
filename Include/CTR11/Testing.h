@@ -14,7 +14,7 @@
 #if defined(CTR_ENABLE_TESTING)
 
 #define CTR_TEST(name, func) \
-    __attribute__((section("ctrtests"))) const TestEntry _TestEntry_##name = { #name, func }
+    __attribute__((section("ctrtests"))) const TestEntry g_TestEntry_##name = { #name, func }
 
 typedef bool (*TestFunc)(uint32_t* reason);
 

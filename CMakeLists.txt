@@ -7,5 +7,14 @@ project(ctr11 C CXX ASM)
 
 option(CTR_ENABLE_QTMRAM "Enable QTMRAM" OFF)
 option(CTR_ENABLE_TESTING "Enable testing" OFF)
+option(CTR_COMPILE_TESTS "Compile tests" OFF)
+
+if (CTR_COMPILE_TESTS)
+    set(CTR_ENABLE_TESTING ON)
+endif()
 
 add_subdirectory(Source)
+
+if (CTR_COMPILE_TESTS)
+    add_subdirectory(Tests)
+endif()
