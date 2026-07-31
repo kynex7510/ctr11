@@ -6,5 +6,6 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 project(ctr11 C CXX ASM)
 
 option(CTR_ENABLE_QTMRAM "Enable QTMRAM" OFF)
+option(CTR_ENABLE_TESTING "Enable testing" OFF)
 
 add_subdirectory(Source)
