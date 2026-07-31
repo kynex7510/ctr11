@@ -9,7 +9,7 @@
 #include <CTR11/Break.h>
 #include <CTR11/Log.h>
 #include <CTR11/Assert.h>
-#include <CTR11/Allocator.h>
+#include <CTR11/Memory.h>
 #include <CTR11/Sync.h>
 #include <CTR11/Unreachable.h>
 #include <CTR11/Tick.h>
@@ -63,7 +63,7 @@ bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize) {
 void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
     if (!alignment) {
         switch (memType) {
-            case MemType_Application:
+            case MemType_AppHeap:
                 return malloc(size);
             case MemType_FCRAM:
                 return linearAlloc(size);
@@ -79,7 +79,7 @@ void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
     }
 
     switch (memType) {
-        case MemType_Application:
+        case MemType_AppHeap:
             return memalign(alignment, size);
         case MemType_FCRAM:
             return linearMemAlign(size, alignment);
@@ -119,7 +119,7 @@ void FreeMem(void* p) {
         return;
 
     switch (GetMemType(p, 0)) {
-        case MemType_Application:
+        case MemType_AppHeap:
             free(p);
             break;
         case MemType_FCRAM:
@@ -179,7 +179,7 @@ void* ReallocMem(void* p, size_t newSize) {
     }
 
     switch (GetMemType(p, 0)) {
-        case MemType_Application:
+        case MemType_AppHeap:
             return realloc(p, newSize);
         case MemType_FCRAM:
             return genericRealloc(MemType_FCRAM, p, newSize);
@@ -204,7 +204,7 @@ MemType GetMemType(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
     if (checkRange(addr, size, OS_HEAP_AREA_BEGIN, OS_HEAP_AREA_END))
-        return MemType_Application;
+        return MemType_AppHeap;
 
     if (checkRange(addr, size, OS_FCRAM_VADDR, OS_FCRAM_SIZE))
         return MemType_FCRAM;
@@ -235,7 +235,7 @@ VRAMBank GetVRAMBank(const void* p, size_t size) {
 
 size_t GetAllocSize(const void* p) {
     switch (GetMemType(p, 0)) {
-        case MemType_Application:
+        case MemType_AppHeap:
             return malloc_usable_size((void*)p);
         case MemType_FCRAM:
             return linearGetSize((void*)p);
@@ -316,18 +316,18 @@ static Result queryRegionAccess(u32 base, size_t size, uint32_t* access) {
     return 0;
 }
 
-bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
+uint32_t GetCPUAccess(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
-    // These two are fixed.
+    // These are fixed.
     const uint32_t heapAccess = MemAccess_Read | MemAccess_Write;
     const uint32_t fcramAccess = MemAccess_Read | MemAccess_Write;
 
     if (checkRange(addr, size, __ctru_heap, __ctru_heap_size))
-        return (access & heapAccess) == access;
+        return heapAccess;
 
     if (checkRange(addr, size, __ctru_linear_heap, __ctru_linear_heap_size))
-        return (access & fcramAccess) == access;
+        return fcramAccess;
 
     // VRAM access depends on the ExHeader.
     if (checkRange(addr, size, OS_VRAM_VADDR, OS_VRAM_SIZE)) {
@@ -342,9 +342,9 @@ bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
             } while (__strex((s32*)&vramAccess, tmp));
         }
 
-        return (access & vramAccess) == access;
+        return vramAccess;
     }
-    
+
 #ifdef CTR_ENABLE_QTMRAM
     uintptr_t qtmramBase = 0;
     size_t qtmramSize = 0;
@@ -363,14 +363,17 @@ bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
             } while (__strex((s32*)&qtmramAccess, tmp));
         }
 
-        return (access & qtmramAccess) == access;
+        return qtmramAccess;
     }
 #endif // CTR_ENABLE_QTMRAM
 
-    return false;
+    // Handle other memory.
+    uint32_t otherAccess = 0;
+    queryRegionAccess(addr, size, &otherAccess);
+    return otherAccess;
 }
 
-bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
+uint32_t GetGPUAccess(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
     // If it's accessible GPU has RW access.
@@ -379,7 +382,7 @@ bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
     bool b = checkRange(addr, size, OS_VRAM_VADDR, OS_VRAM_SIZE) ||
         checkRange(addr, size, __ctru_linear_heap, __ctru_linear_heap_size);
 
-#ifdef CTR_ENABLE_QTMRAM
+    #ifdef CTR_ENABLE_QTMRAM
     if (!b) {
         uintptr_t qtmramBase = 0;
         size_t qtmramSize = 0;
@@ -388,10 +391,7 @@ bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
     }
 #endif // CTR_ENABLE_QTMRAM
 
-    if (b)
-        b = (access & sharedAccess) == access;
-
-    return b;
+    return b ? sharedAccess : 0;
 }
 
 // Cache
@@ -409,7 +409,7 @@ void FlushDataCache(const void* addr, size_t size) {
 void Yield(void) { svcSleepThread(0); }
 
 Mutex CreateMutex(void) {
-    LightLock* l = AllocMem(MemType_Application, sizeof(LightLock));
+    LightLock* l = AllocMem(MemType_AppHeap, sizeof(LightLock));
     CTR_BREAK_IF(l == NULL);
     LightLock_Init(l);
     return (Mutex)l;
@@ -431,7 +431,7 @@ void ReleaseMutex(Mutex m) {
 }
 
 CV CreateCV(void) {
-    CondVar* cv = AllocMem(MemType_Application, sizeof(CondVar));
+    CondVar* cv = AllocMem(MemType_AppHeap, sizeof(CondVar));
     CTR_BREAK_IF(cv == NULL);
     CondVar_Init(cv);
     return (CV)cv;

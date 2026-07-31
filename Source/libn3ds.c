@@ -19,7 +19,7 @@
 #include <CTR11/Break.h>
 #include <CTR11/Log.h>
 #include <CTR11/Assert.h>
-#include <CTR11/Allocator.h>
+#include <CTR11/Memory.h>
 #include <CTR11/Sync.h>
 #include <CTR11/Unreachable.h>
 #include <CTR11/Tick.h>
@@ -66,7 +66,7 @@ bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize) {
 void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
     if (!alignment) {
         switch (memType) {
-            case MemType_Application:
+            case MemType_AppHeap:
                 return malloc(size);
             case MemType_FCRAM:
                 return fcramAlloc(size);
@@ -82,7 +82,7 @@ void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
     }
 
     switch (memType) {
-        case MemType_Application:
+        case MemType_AppHeap:
             return memalign(alignment, size);
         case MemType_FCRAM:
             return fcramMemAlign(size, alignment);
@@ -122,7 +122,7 @@ void FreeMem(void* p) {
         return;
 
     switch (GetMemType(p, 0)) {
-        case MemType_Application:
+        case MemType_AppHeap:
             free(p);
             break;
         case MemType_FCRAM:
@@ -182,7 +182,7 @@ void* ReallocMem(void* p, size_t newSize) {
     }
 
     switch (GetMemType(p, 0)) {
-        case MemType_Application:
+        case MemType_AppHeap:
             return realloc(p, newSize);
         case MemType_FCRAM:
             return genericRealloc(MemType_FCRAM, p, newSize);
@@ -207,7 +207,7 @@ MemType GetMemType(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
     if (checkRange(addr, size, AXI_RAM_BASE, AXI_RAM_SIZE))
-        return MemType_Application;
+        return MemType_AppHeap;
 
     if (checkRange(addr, size, FCRAM_BASE, FCRAM_SIZE + FCRAM_EXT_SIZE))
         return MemType_FCRAM;
@@ -237,7 +237,7 @@ VRAMBank GetVRAMBank(const void* p, size_t size) {
 
 size_t GetAllocSize(const void* p) {
     switch (GetMemType(p, 0)) {
-        case MemType_Application:
+        case MemType_AppHeap:
             return malloc_usable_size((void*)p);
         case MemType_FCRAM:
             return fcramGetSize((void*)p);
@@ -256,7 +256,7 @@ size_t GetAllocSize(const void* p) {
 uintptr_t GetPhysicalAddress(const void* addr) { return (uintptr_t)addr; }
 void* GetVirtualAddress(uintptr_t addr) { return (void*)addr; }
 
-bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
+uint32_t GetCPUAccess(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
     // Everything is mapped as RW.
@@ -276,13 +276,10 @@ bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
     }
 #endif // CTR_ENABLE_QTMRAM
 
-    if (b)
-        b = (access & sharedAccess) == access;
-
-    return b;
+    return b ? sharedAccess : 0;
 }
 
-bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
+uint32_t GetGPUAccess(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
     // If it's accessible GPU has RW access.
@@ -314,10 +311,7 @@ bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
     }
 #endif // CTR_ENABLE_QTMRAM
 
-    if (b)
-        b = (access & sharedAccess) == access;
-
-    return b;
+    return b ? sharedAccess : 0;
 }
 
 // Cache
@@ -356,7 +350,7 @@ void ReleaseMutex(Mutex m) {
 }
 
 CV CreateCV(void)  {
-    CV cv = AllocMem(MemType_Application, sizeof(*cv));
+    CV cv = AllocMem(MemType_AppHeap, sizeof(*cv));
     CTR_BREAK_IF(cv == NULL);
     cv->sema = createSemaphore(0);
     CTR_BREAK_IF(!cv->sema);

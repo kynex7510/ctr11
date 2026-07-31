@@ -5,7 +5,7 @@
  */
 
 #include <CTR11/Testing.h>
-#include <CTR11/Allocator.h>
+#include <CTR11/Memory.h>
 
 #define FAIL_IF(cond)           \
     do {                        \
@@ -18,10 +18,10 @@
 static bool rangeChecksTest(uint32_t* reason) {
     const size_t allocSize = 8;
 
-    void* p = AllocMem(MemType_Application, allocSize);
+    void* p = AllocMem(MemType_AppHeap, allocSize);
     FAIL_IF(!p);
-    FAIL_IF(!IsMemApplication(p, allocSize));
-    FAIL_IF(!IsMemApplication(p, 0));
+    FAIL_IF(!IsMemAppHeap(p, allocSize));
+    FAIL_IF(!IsMemAppHeap(p, 0));
     FAIL_IF(IsMemFCRAM(p, allocSize));
     FAIL_IF(IsMemFCRAM(p, 0));
     FAIL_IF(IsMemVRAM(p, allocSize));
@@ -33,8 +33,8 @@ static bool rangeChecksTest(uint32_t* reason) {
 
     p = AllocMem(MemType_FCRAM, allocSize);
     FAIL_IF(!p);
-    FAIL_IF(IsMemApplication(p, allocSize));
-    FAIL_IF(IsMemApplication(p, 0));
+    FAIL_IF(IsMemAppHeap(p, allocSize));
+    FAIL_IF(IsMemAppHeap(p, 0));
     FAIL_IF(!IsMemFCRAM(p, allocSize));
     FAIL_IF(!IsMemFCRAM(p, 0));
     FAIL_IF(IsMemVRAM(p, allocSize));
@@ -46,8 +46,8 @@ static bool rangeChecksTest(uint32_t* reason) {
 
     p = AllocMem(MemType_VRAM, allocSize);
     FAIL_IF(!p);
-    FAIL_IF(IsMemApplication(p, allocSize));
-    FAIL_IF(IsMemApplication(p, 0));
+    FAIL_IF(IsMemAppHeap(p, allocSize));
+    FAIL_IF(IsMemAppHeap(p, 0));
     FAIL_IF(IsMemFCRAM(p, allocSize));
     FAIL_IF(IsMemFCRAM(p, 0));
     FAIL_IF(!IsMemVRAM(p, allocSize));
@@ -60,8 +60,8 @@ static bool rangeChecksTest(uint32_t* reason) {
 #ifdef CTR_ENABLE_QTMRAM
     p = AllocMem(MemType_QTMRAM, allocSize);
     FAIL_IF(!p);
-    FAIL_IF(IsMemApplication(p, allocSize));
-    FAIL_IF(IsMemApplication(p, 0));
+    FAIL_IF(IsMemAppHeap(p, allocSize));
+    FAIL_IF(IsMemAppHeap(p, 0));
     FAIL_IF(IsMemFCRAM(p, allocSize));
     FAIL_IF(IsMemFCRAM(p, 0));
     FAIL_IF(IsMemVRAM(p, allocSize));
@@ -97,19 +97,16 @@ CTR_TEST(VRAMBank, vramBankTest);
 static bool cpuAccessTest(uint32_t* reason) {
     const size_t allocSize = 8;
 
-    // CPU has RW access on stack.
-    FAIL_IF(!IsCPUAccessible(&allocSize, sizeof(allocSize), MemAccess_Read | MemAccess_Write));
-
-    // CPU has RW access on application memory.
-    void* p = AllocMem(MemType_Application, allocSize);
+    // CPU has RW access on app heap.
+    void* p = AllocMem(MemType_AppHeap, allocSize);
     FAIL_IF(!p);    
-    FAIL_IF(!IsCPUAccessible(p, allocSize, MemAccess_Read | MemAccess_Write));
+    FAIL_IF(GetCPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
     FreeMem(p);
 
     // CPU has RW access on FCRAM.
     p = AllocMem(MemType_FCRAM, allocSize);
     FAIL_IF(!p);
-    FAIL_IF(!IsCPUAccessible(p, allocSize, MemAccess_Read | MemAccess_Write));
+    FAIL_IF(GetCPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
     FreeMem(p);
 
     return true;
@@ -119,30 +116,29 @@ CTR_TEST(CPUAccess, cpuAccessTest);
 static bool gpuAccessTest(uint32_t* reason) {
     const size_t allocSize = 8;
 
-    // GPU has no access on application memory.
-    void* p = AllocMem(MemType_Application, allocSize);
+    // GPU has no access on app heap.
+    void* p = AllocMem(MemType_AppHeap, allocSize);
     FAIL_IF(!p);
-    FAIL_IF(IsGPUAccessible(p, allocSize, MemAccess_Read));
-    FAIL_IF(IsGPUAccessible(p, allocSize, MemAccess_Write));
+    FAIL_IF(GetGPUAccess(p, allocSize));
     FreeMem(p);
 
     // GPU has RW access on FCRAM.
     p = AllocMem(MemType_FCRAM, allocSize);
     FAIL_IF(!p);
-    FAIL_IF(!IsGPUAccessible(p, allocSize, MemAccess_Read | MemAccess_Write));
+    FAIL_IF(GetGPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
     FreeMem(p);
 
     // GPU has RW access on VRAM.
     p = AllocMem(MemType_VRAM, allocSize);
     FAIL_IF(!p);
-    FAIL_IF(!IsGPUAccessible(p, allocSize, MemAccess_Read | MemAccess_Write));
+    FAIL_IF(GetGPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
     FreeMem(p);
 
 #ifdef CTR_ENABLE_QTMRAM
     // GPU has RW access on QTMRAM.
     p = AllocMem(MemType_QTMRAM, allocSize);
     FAIL_IF(!p);
-    FAIL_IF(!IsGPUAccessible(p, allocSize, MemAccess_Read | MemAccess_Write));
+    FAIL_IF(GetGPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
     FreeMem(p);
 #endif // CTR_ENABLE_QTMRAM
 

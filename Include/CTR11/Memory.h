@@ -4,13 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#ifndef GUARD_CTR11_ALLOCATOR_H
-#define GUARD_CTR11_ALLOCATOR_H
+#ifndef GUARD_CTR11_MEMORY_H
+#define GUARD_CTR11_MEMORY_H
 
 #include <CTR11/Defs.h>
 
 typedef enum {
-    MemType_Application,
+    MemType_AppHeap,
     MemType_FCRAM,
     MemType_VRAM,
     MemType_QTMRAM,
@@ -48,7 +48,7 @@ MemType GetMemType(const void* p, size_t size);
 VRAMBank GetVRAMBank(const void* p, size_t size);
 size_t GetAllocSize(const void* p);
 
-CTR_INLINE bool IsMemApplication(const void* p, size_t size) { return GetMemType(p, size) == MemType_Application; }
+CTR_INLINE bool IsMemAppHeap(const void* p, size_t size) { return GetMemType(p, size) == MemType_AppHeap; }
 CTR_INLINE bool IsMemFCRAM(const void* p, size_t size) { return GetMemType(p, size) == MemType_FCRAM; }
 CTR_INLINE bool IsMemVRAM(const void* p, size_t size) { return GetMemType(p, size) == MemType_VRAM; }
 CTR_INLINE bool IsMemQTMRAM(const void* p, size_t size) { return GetMemType(p, size) == MemType_QTMRAM; }
@@ -56,11 +56,19 @@ CTR_INLINE bool IsMemQTMRAM(const void* p, size_t size) { return GetMemType(p, s
 uintptr_t GetPhysicalAddress(const void* addr);
 void* GetVirtualAddress(uintptr_t addr);
 
-bool IsCPUAccessible(const void* p, size_t size, uint32_t access);
-bool IsGPUAccessible(const void* p, size_t size, uint32_t access);
+uint32_t GetCPUAccess(const void* p, size_t size);
+uint32_t GetGPUAccess(const void* p, size_t size);
+
+CTR_INLINE bool IsCPUAccessible(const void* p, size_t size, uint32_t access) {
+    return (GetCPUAccess(p, size) & access) == access;
+}
+
+CTR_INLINE bool IsGPUAccessible(const void* p, size_t size, uint32_t access) {
+    return (GetGPUAccess(p, size) & access) == access;
+}
 
 #ifdef __cplusplus
 }
 #endif // __cplusplus
 
-#endif /* GUARD_CTR11_ALLOCATOR_H */
+#endif /* GUARD_CTR11_MEMORY_H */
