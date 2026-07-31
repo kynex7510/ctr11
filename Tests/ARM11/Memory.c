@@ -94,41 +94,55 @@ static bool vramBankTest(uint32_t* reason) {
 }
 CTR_TEST(VRAMBank, vramBankTest);
 
+static bool cpuAccessTest(uint32_t* reason) {
+    const size_t allocSize = 8;
+
+    // CPU has RW access on stack.
+    FAIL_IF(!IsCPUAccessible(&allocSize, sizeof(allocSize), MemAccess_Read | MemAccess_Write));
+
+    // CPU has RW access on application memory.
+    void* p = AllocMem(MemType_Application, allocSize);
+    FAIL_IF(!p);    
+    FAIL_IF(!IsCPUAccessible(p, allocSize, MemAccess_Read | MemAccess_Write));
+    FreeMem(p);
+
+    // CPU has RW access on FCRAM.
+    p = AllocMem(MemType_FCRAM, allocSize);
+    FAIL_IF(!p);
+    FAIL_IF(!IsCPUAccessible(p, allocSize, MemAccess_Read | MemAccess_Write));
+    FreeMem(p);
+
+    return true;
+}
+CTR_TEST(CPUAccess, cpuAccessTest);
+
 static bool gpuAccessTest(uint32_t* reason) {
     const size_t allocSize = 8;
 
+    // GPU has no access on application memory.
     void* p = AllocMem(MemType_Application, allocSize);
     FAIL_IF(!p);
-
-    // GPU has no access on application memory.
     FAIL_IF(IsGPUAccessible(p, allocSize, MemAccess_Read));
     FAIL_IF(IsGPUAccessible(p, allocSize, MemAccess_Write));
-
     FreeMem(p);
-
-    p = AllocMem(MemType_FCRAM, allocSize);
-    FAIL_IF(!p);
 
     // GPU has RW access on FCRAM.
+    p = AllocMem(MemType_FCRAM, allocSize);
+    FAIL_IF(!p);
     FAIL_IF(!IsGPUAccessible(p, allocSize, MemAccess_Read | MemAccess_Write));
-
     FreeMem(p);
 
+    // GPU has RW access on VRAM.
     p = AllocMem(MemType_VRAM, allocSize);
     FAIL_IF(!p);
-
-    // GPU has RW access on VRAM.
     FAIL_IF(!IsGPUAccessible(p, allocSize, MemAccess_Read | MemAccess_Write));
-
     FreeMem(p);
 
 #ifdef CTR_ENABLE_QTMRAM
+    // GPU has RW access on QTMRAM.
     p = AllocMem(MemType_QTMRAM, allocSize);
     FAIL_IF(!p);
-
-    // GPU has RW access on QTMRAM.
     FAIL_IF(!IsGPUAccessible(p, allocSize, MemAccess_Read | MemAccess_Write));
-
     FreeMem(p);
 #endif // CTR_ENABLE_QTMRAM
 
