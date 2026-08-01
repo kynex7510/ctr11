@@ -97,6 +97,21 @@ CTR_TEST(VRAMBank, vramBankTest);
 static bool cpuAccessTest(uint32_t* reason) {
     const size_t allocSize = 8;
 
+    // CPU has read only access on .text.
+    extern uint32_t memoryTestTextVar;
+    FAIL_IF(GetCPUAccess(&memoryTestTextVar, sizeof(uint32_t)) != MemAccess_Read);
+
+    // CPU has read only access on .rodata.
+    extern uint32_t memoryTestRodataVar;
+    FAIL_IF(GetCPUAccess(&memoryTestRodataVar, sizeof(uint32_t)) != MemAccess_Read);
+
+    // CPU has RW access on .data.
+    extern uint32_t memoryTestDataVar;
+    FAIL_IF(GetCPUAccess(&memoryTestDataVar, sizeof(uint32_t)) != (MemAccess_Read | MemAccess_Write));
+
+    // CPU has RW access on stack.
+    FAIL_IF(GetCPUAccess(&reason, sizeof(uint32_t*)) != (MemAccess_Read | MemAccess_Write));
+
     // CPU has RW access on app heap.
     void* p = AllocMem(MemType_AppHeap, allocSize);
     FAIL_IF(!p);    

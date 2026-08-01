@@ -21,9 +21,11 @@
 #include <malloc.h>
 #include <string.h>
 
+extern char* fake_heap_start;
+extern char* fake_heap_end;
 extern u32 __ctru_heap;
-extern u32 __ctru_linear_heap;
 extern u32 __ctru_heap_size;
+extern u32 __ctru_linear_heap;
 extern u32 __ctru_linear_heap_size;
 
 // CTR_BREAK
@@ -203,10 +205,10 @@ static inline bool checkRange(u32 p, size_t size, u32 rangeBase, size_t rangeSiz
 MemType GetMemType(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
-    if (checkRange(addr, size, OS_HEAP_AREA_BEGIN, OS_HEAP_AREA_END))
+    if (checkRange(addr, size, (u32)fake_heap_start, fake_heap_end - fake_heap_start))
         return MemType_AppHeap;
 
-    if (checkRange(addr, size, OS_FCRAM_VADDR, OS_FCRAM_SIZE))
+    if (checkRange(addr, size, __ctru_linear_heap, __ctru_linear_heap_size))
         return MemType_FCRAM;
 
     if (checkRange(addr, size, OS_VRAM_VADDR, OS_VRAM_SIZE))
@@ -306,12 +308,14 @@ static Result queryRegionAccess(u32 base, size_t size, uint32_t* access) {
     }
 
     *access = 0;
-        
-    if (memInfo.perm & MEMPERM_READ)
-        *access |= MemAccess_Read;
 
-    if (memInfo.perm & MEMPERM_WRITE)
-        *access |= MemAccess_Write;
+    if (memInfo.size >= size) {
+        if (memInfo.perm & MEMPERM_READ)
+            *access |= MemAccess_Read;
+
+        if (memInfo.perm & MEMPERM_WRITE)
+            *access |= MemAccess_Write;
+    }
 
     return 0;
 }
@@ -323,6 +327,8 @@ uint32_t GetCPUAccess(const void* p, size_t size) {
     const uint32_t heapAccess = MemAccess_Read | MemAccess_Write;
     const uint32_t fcramAccess = MemAccess_Read | MemAccess_Write;
 
+    // Check for libctru heap instead of fake heap because stack is mapped in the 
+    // heap area for legacy reasons, hence it's more efficient for stack addresses.
     if (checkRange(addr, size, __ctru_heap, __ctru_heap_size))
         return heapAccess;
 

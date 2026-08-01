@@ -30,6 +30,10 @@
 #include <malloc.h>
 #include <string.h>
 
+// fake_heap_start is not set, heap starts after .bss.
+extern char __bss_end__;
+extern char* fake_heap_end;
+
 // CTR_BREAK
 
 void impl_ctr11_break() { panic(); }
@@ -206,7 +210,7 @@ static inline bool checkRange(u32 p, size_t size, u32 rangeBase, size_t rangeSiz
 MemType GetMemType(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
-    if (checkRange(addr, size, AXI_RAM_BASE, AXI_RAM_SIZE))
+    if (checkRange(addr, size, (u32)&__bss_end__, fake_heap_end - &__bss_end__))
         return MemType_AppHeap;
 
     if (checkRange(addr, size, FCRAM_BASE, FCRAM_SIZE + FCRAM_EXT_SIZE))
@@ -256,14 +260,53 @@ size_t GetAllocSize(const void* p) {
 uintptr_t GetPhysicalAddress(const void* addr) { return (uintptr_t)addr; }
 void* GetVirtualAddress(uintptr_t addr) { return (void*)addr; }
 
+static uint32_t queryMemoryAccess(u32 addr) {
+    // Walk the translation tables.
+    const u32* l1Table = (const u32*)(__getTtbr0() & 0xFFFFF000);
+    const u32 l1Entry = l1Table[addr >> 20];
+
+    // Check L2 entries.
+    if ((l1Entry & 0x03) == 0x01) {
+        const u32* l2Table = (const u32*)(l1Entry & 0xFFFFFC00);
+        const u32 l2Entry = l2Table[(addr >> 12) & 0xFF];
+        const u32 perm = (l2Entry >> 4) & 0x3F;
+        if (perm)
+            return (perm >> 5) ? MemAccess_Read : (MemAccess_Read | MemAccess_Write);
+
+        return 0;
+    }
+
+    // Check sections/supersections.
+    if ((l1Entry & 0x03) == 0x02) {
+        // Always RW if mapped.
+        // TODO: implement generic logic.
+        return ((l1Entry >> 10) & 0x3F) ? (MemAccess_Read | MemAccess_Write) : 0;
+    }
+
+    return 0;
+}
+
+static uint32_t queryRegionAccess(u32 addr, size_t size) {
+    const uint32_t access = queryMemoryAccess(addr);
+
+    if (!access)
+        return 0;
+
+    for (size_t i = 0x1000; i < size; i += 0x1000) {
+        if (queryMemoryAccess(addr + i) != access)
+            return 0;
+    }
+
+    return access;
+}
+
 uint32_t GetCPUAccess(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
-    // Everything is mapped as RW.
+    // These are all RW.
     const uint32_t sharedAccess = MemAccess_Read | MemAccess_Write;
 
-    // TODO: check this.
-    bool b = checkRange(addr, size, AXI_RAM_BASE, AXI_RAM_SIZE) ||
+    bool b = checkRange(addr, size, (u32)&__bss_end__, fake_heap_end - &__bss_end__) ||
         checkRange(addr, size, FCRAM_BASE, FCRAM_SIZE + FCRAM_EXT_SIZE) ||
         checkRange(addr, size, VRAM_BASE, VRAM_SIZE);
 
@@ -276,7 +319,7 @@ uint32_t GetCPUAccess(const void* p, size_t size) {
     }
 #endif // CTR_ENABLE_QTMRAM
 
-    return b ? sharedAccess : 0;
+    return b ? sharedAccess : queryRegionAccess(addr, size);
 }
 
 uint32_t GetGPUAccess(const void* p, size_t size) {

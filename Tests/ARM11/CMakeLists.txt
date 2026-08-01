@@ -4,6 +4,7 @@ endif()
 
 set(TEST_SOURCES
     Memory.c
+    MemVars.s
     Main.c  
 )
 
