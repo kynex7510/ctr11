@@ -61,9 +61,16 @@ size_t RunTests(TestCallback callback) {
         TestResult result;
 
         TickTimer timer;
+        uint64_t customTicks = 0;
         TickTimerStart(&timer);
-        result.passed = current->func(&result.reason);
-        result.nsec = TickTimerNs(TickTimerStop(&timer));
+        result.passed = current->func(&result.reason, &customTicks);
+        const uint64_t deltaTime = TickTimerStop(&timer);
+
+        if (customTicks) {
+            result.nsec = TickTimerNs(result.passed ? customTicks : 0);
+        } else {
+            result.nsec = TickTimerNs(deltaTime);
+        }
 
         (callback ? callback : testCallback)(current - &__start_ctrtests, &result);
 

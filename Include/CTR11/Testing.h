@@ -13,10 +13,15 @@
 
 #ifdef CTR_ENABLE_TESTING
 
-#define CTR_TEST(name, func) \
+#define CTR_REGISTER_TEST(name, func) \
     __attribute__((section("ctrtests"))) const TestEntry g_TestEntry_##name = { #name, func }
 
-typedef bool (*TestFunc)(uint32_t* reason);
+#define CTR_TEST(name, rp, tp)            \
+    bool name(uint32_t*, uint64_t*);      \
+    CTR_REGISTER_TEST(name, name);        \
+    bool name(uint32_t* rp, uint64_t* tp)
+
+typedef bool (*TestFunc)(uint32_t* reason, uint64_t* ticks);
 
 typedef struct {
     const char* name;

@@ -15,7 +15,10 @@
         }                       \
     } while (0)
 
-static bool rangeChecksTest(uint32_t* reason) {
+#define DEFINE_TEST(name) \
+    CTR_TEST(name, reason, unused)
+
+DEFINE_TEST(RangeCheck) {
     const size_t allocSize = 8;
 
     void* p = AllocMem(MemType_AppHeap, allocSize);
@@ -74,9 +77,8 @@ static bool rangeChecksTest(uint32_t* reason) {
 
     return true;
 }
-CTR_TEST(RangeChecks, rangeChecksTest);
 
-static bool vramBankTest(uint32_t* reason) {
+DEFINE_TEST(VRAMBank) {
     void* p = AllocMemVRAM(VRAMBank_A, 8);
     FAIL_IF(!p);
     FAIL_IF(GetVRAMBank(p, 8) != VRAMBank_A);
@@ -92,9 +94,8 @@ static bool vramBankTest(uint32_t* reason) {
     FreeMem(p);
     return true;
 }
-CTR_TEST(VRAMBank, vramBankTest);
 
-static bool cpuAccessTest(uint32_t* reason) {
+DEFINE_TEST(CPUAccess) {
     const size_t allocSize = 8;
 
     // CPU has read only access on .text.
@@ -126,9 +127,8 @@ static bool cpuAccessTest(uint32_t* reason) {
 
     return true;
 }
-CTR_TEST(CPUAccess, cpuAccessTest);
 
-static bool gpuAccessTest(uint32_t* reason) {
+DEFINE_TEST(GPUAccess) {
     const size_t allocSize = 8;
 
     // GPU has no access on app heap.
@@ -159,9 +159,8 @@ static bool gpuAccessTest(uint32_t* reason) {
 
     return true;
 }
-CTR_TEST(GPUAccess, gpuAccessTest);
 
-static bool vaToPaTest(uint32_t* reason) {
+DEFINE_TEST(VaToPa) {
     const size_t allocSize = 8;
 
     // FCRAM
@@ -207,4 +206,3 @@ static bool vaToPaTest(uint32_t* reason) {
 
     return true;
 }
-CTR_TEST(VaToPa, vaToPaTest);
