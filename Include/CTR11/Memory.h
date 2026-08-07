@@ -27,8 +27,10 @@ extern "C" {
 #endif // __cplusplus
 
 void* AllocMemAligned(uint32_t memTypes, size_t size, size_t alignment);
+void* AllocMemOrderedAligned(uint32_t* memTypes, size_t numTypes, size_t size, size_t alignment);
 
 CTR_INLINE void* AllocMem(uint32_t memTypes, size_t size) { return AllocMemAligned(memTypes, size, 0); }
+CTR_INLINE void* AllocMemOrdered(uint32_t* memTypes, size_t numTypes, size_t size) { return AllocMemOrderedAligned(memTypes, numTypes, size, 0); }
 
 void FreeMem(void* p);
 

@@ -82,22 +82,22 @@ void* AllocMemAligned(uint32_t memTypes, size_t size, size_t alignment) {
     }
 
     // Let the allocator decide.
-    if (memTypes & (MemType_VRAM_A | MemType_VRAM_B)) {
+    if ((memTypes & (MemType_VRAM_A | MemType_VRAM_B)) == (MemType_VRAM_A | MemType_VRAM_B)) {
         void* p = vramMemAlign(size, alignment);
         if (p)
             return p;
-    }
+    } else {
+        if (memTypes & MemType_VRAM_A) {
+            void* p = vramMemAlignAt(size, alignment, VRAM_ALLOC_A);
+            if (p)
+                return p;
+        }
 
-    if (memTypes & MemType_VRAM_A) {
-        void* p = vramMemAlignAt(size, alignment, VRAM_ALLOC_A);
-        if (p)
-            return p;
-    }
-
-    if (memTypes & MemType_VRAM_B) {
-        void* p = vramMemAlignAt(size, alignment, VRAM_ALLOC_B);
-        if (p)
-            return p;
+        if (memTypes & MemType_VRAM_B) {
+            void* p = vramMemAlignAt(size, alignment, VRAM_ALLOC_B);
+            if (p)
+                return p;
+        }
     }
 
 #ifdef CTR_ENABLE_QTMRAM

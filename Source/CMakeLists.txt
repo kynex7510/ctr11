@@ -4,8 +4,10 @@ if (CTR_BM)
 endif()
 
 # Setup library.
+set(CTR11_SOURCES Memory.c)
+
 if (CTR_ENABLE_QTMRAM)
-    set(CTR11_SOURCES QTMRAM.c)
+    set(CTR11_SOURCES ${CTR11_SOURCES} QTMRAM.c)
 endif()
 
 if (CTR_ENABLE_TESTING)
