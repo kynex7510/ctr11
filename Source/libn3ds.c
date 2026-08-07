@@ -67,58 +67,53 @@ bool qtmramInitRegion(uintptr_t* regionBase, size_t* regionSize) {
 
 #endif // CTR_ENABLE_QTMRAM
 
-void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
-    if (!alignment) {
-        switch (memType) {
-            case MemType_AppHeap:
-                return malloc(size);
-            case MemType_FCRAM:
-                return fcramAlloc(size);
-            case MemType_VRAM:
-                return vramAlloc(size);
+void* AllocMemAligned(uint32_t memTypes, size_t size, size_t alignment) {
+    if (!size)
+        return NULL;
+
+    if (!alignment)
+        alignment = 1;
+
+    if (memTypes & MemType_AppHeap) {
+        void* p = memalign(alignment, size);
+        if (p)
+            return p;
+    }
+
+    if (memTypes & MemType_FCRAM) {
+        void* p = fcramMemAlign(size, alignment);
+        if (p)
+            return p;
+    }
+
+    // Let the allocator decide.
+    if (memTypes & (MemType_VRAM_A | MemType_VRAM_B)) {
+        void* p = vramMemAlign(size, alignment);
+        if (p)
+            return p;
+    }
+
+    if (memTypes & MemType_VRAM_A) {
+        void* p = vramMemAlignAt(size, alignment, VRAM_ALLOC_A);
+        if (p)
+            return p;
+    }
+
+    if (memTypes & MemType_VRAM_B) {
+        void* p = vramMemAlignAt(size, alignment, VRAM_ALLOC_B);
+        if (p)
+            return p;
+    }
+
 #ifdef CTR_ENABLE_QTMRAM
-            case MemType_QTMRAM:
-                return qtmramAlloc(size);
+    if (memTypes & MemType_QTMRAM) {
+        void* p = qtmramMemAlign(size, alignment);
+        if (p)
+            return p;
+    }
 #endif // CTR_ENABLE_QTMRAM
-            default:
-                CTR_UNREACHABLE("Invalid memory type");
-        }
-    }
 
-    switch (memType) {
-        case MemType_AppHeap:
-            return memalign(alignment, size);
-        case MemType_FCRAM:
-            return fcramMemAlign(size, alignment);
-        case MemType_VRAM:
-            return vramMemAlign(size, alignment);
-#ifdef CTR_ENABLE_QTMRAM
-        case MemType_QTMRAM:
-            return qtmramMemAlign(size, alignment);
-#endif // CTR_ENABLE_QTMRAM
-        default:
-            CTR_UNREACHABLE("Invalid memory type");
-    }
-}
-
-static inline vramAllocPos getVRAMPos(VRAMBank bank) {
-    switch (bank) {
-        case VRAMBank_A:
-            return VRAM_ALLOC_A;
-        case VRAMBank_B:
-            return VRAM_ALLOC_B;
-        case VRAMBank_Any:
-            return VRAM_ALLOC_ANY;
-        default:
-            CTR_UNREACHABLE("Invalid VRAM bank");
-    }
-}
-
-void* AllocMemAlignedVRAM(VRAMBank bank, size_t size, size_t aligment) {
-    if (!aligment)
-        return vramAllocAt(size, getVRAMPos(bank));
-    
-    return vramMemAlignAt(size, aligment, getVRAMPos(bank));
+    return NULL;
 }
 
 void FreeMem(void* p) {
@@ -132,7 +127,8 @@ void FreeMem(void* p) {
         case MemType_FCRAM:
             fcramFree(p);
             break;
-        case MemType_VRAM:
+        case MemType_VRAM_A:
+        case MemType_VRAM_B:
             vramFree(p);
             break;
 #ifdef CTR_ENABLE_QTMRAM
@@ -145,69 +141,12 @@ void FreeMem(void* p) {
     }
 }
 
-static void* genericRealloc(MemType type, void* p, size_t size) {
-    void* q = AllocMem(type, size);
-    if (q) {
-        const size_t oldSize = GetAllocSize(p);
-        memcpy(q, p, size < oldSize ? size : oldSize);
-        FreeMem(p);
-    }
-
-    return q;
-}
-
-static inline void* vramReallocCustom(void* p, size_t newSize) {
-    const VRAMBank bank = GetVRAMBank(p, 0);
-
-    // If the new size is less than the old size, reallocation must succeed.
-    const size_t oldSize = GetAllocSize(p);
-    if (newSize < oldSize) {
-        FreeMem(p);
-        void* newp = AllocMemVRAM(bank, newSize);
-        CTR_BREAK_IF(!newp);
-        return newp;
-    }
-
-    // Try to realloc memory in the same bank first.
-    void* q = AllocMemVRAM(bank, newSize);
-    if (!q)
-        q = AllocMemVRAM(bank == VRAMBank_A ? VRAMBank_B : VRAMBank_A, newSize);
-
-    if (q)
-        FreeMem(p);
-
-    return q;
-}
-
-void* ReallocMem(void* p, size_t newSize) {
-    if (newSize == 0) {
-        FreeMem(p);
-        return NULL;
-    }
-
-    switch (GetMemType(p, 0)) {
-        case MemType_AppHeap:
-            return realloc(p, newSize);
-        case MemType_FCRAM:
-            return genericRealloc(MemType_FCRAM, p, newSize);
-        case MemType_VRAM:
-            return vramReallocCustom(p, newSize);
-#ifdef CTR_ENABLE_QTMRAM
-        case MemType_QTMRAM:
-            return genericRealloc(MemType_QTMRAM, p, newSize);
-#endif // CTR_ENABLE_QTMRAM
-        default:
-            CTR_LOG_LOCATION("Invalid memory type");
-            return NULL;
-    }
-}
-
 static inline bool checkRange(u32 p, size_t size, u32 rangeBase, size_t rangeSize) {
     const size_t offset = p - rangeBase;
     return p >= rangeBase && offset < rangeSize && (rangeSize - offset) > size;
 }
 
-MemType GetMemType(const void* p, size_t size) {
+uint32_t GetMemType(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
     if (checkRange(addr, size, (u32)&__bss_end__, fake_heap_end - &__bss_end__))
@@ -216,27 +155,17 @@ MemType GetMemType(const void* p, size_t size) {
     if (checkRange(addr, size, FCRAM_BASE, FCRAM_SIZE + FCRAM_EXT_SIZE))
         return MemType_FCRAM;
 
-    if (checkRange(addr, size, VRAM_BASE, VRAM_SIZE))
-        return MemType_VRAM;
+    if (checkRange(addr, size, VRAM_BANK0, VRAM_BANK_SIZE))
+        return MemType_VRAM_A;
+
+    if (checkRange(addr, size, VRAM_BANK1, VRAM_BANK_SIZE))
+        return MemType_VRAM_B;
 
     if (checkRange(addr, size, QTM_RAM_BASE, QTM_RAM_SIZE))
         return MemType_QTMRAM;
 
     CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
-    return MemType_Unknown;
-}
-
-VRAMBank GetVRAMBank(const void* p, size_t size) {
-    const u32 addr = (u32)p;
-
-    if (checkRange(addr, size, VRAM_BANK0, VRAM_BANK_SIZE))
-        return VRAMBank_A;
-
-    if (checkRange(addr, size, VRAM_BANK1, VRAM_BANK_SIZE))
-        return VRAMBank_B;
-
-    CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
-    return VRAMBank_Unknown;
+    return 0;
 }
 
 size_t GetAllocSize(const void* p) {
@@ -245,7 +174,8 @@ size_t GetAllocSize(const void* p) {
             return malloc_usable_size((void*)p);
         case MemType_FCRAM:
             return fcramGetSize((void*)p);
-        case MemType_VRAM:
+        case MemType_VRAM_A:
+        case MemType_VRAM_B:
             return vramGetSize((void*)p);
 #ifdef CTR_ENABLE_QTMRAM
         case MemType_QTMRAM:

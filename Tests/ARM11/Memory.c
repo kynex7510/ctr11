@@ -4,19 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <CTR11/Testing.h>
 #include <CTR11/Memory.h>
 
-#define FAIL_IF(cond)           \
-    do {                        \
-        if ((cond)) {           \
-            *reason = __LINE__; \
-            return false;       \
-        }                       \
-    } while (0)
-
-#define DEFINE_TEST(name) \
-    CTR_TEST(name, reason, unused)
+#include "Common.h"
 
 DEFINE_TEST(RangeCheck) {
     const size_t allocSize = 8;
@@ -47,14 +37,31 @@ DEFINE_TEST(RangeCheck) {
     FAIL_IF(GetAllocSize(p) < allocSize);
     FreeMem(p);
 
-    p = AllocMem(MemType_VRAM, allocSize);
+    p = AllocMem(MemType_VRAM_A, allocSize);
     FAIL_IF(!p);
     FAIL_IF(IsMemAppHeap(p, allocSize));
     FAIL_IF(IsMemAppHeap(p, 0));
     FAIL_IF(IsMemFCRAM(p, allocSize));
     FAIL_IF(IsMemFCRAM(p, 0));
-    FAIL_IF(!IsMemVRAM(p, allocSize));
-    FAIL_IF(!IsMemVRAM(p, 0));
+    FAIL_IF(!IsMemVRAMA(p, allocSize));
+    FAIL_IF(!IsMemVRAMA(p, 0));
+    FAIL_IF(IsMemVRAMB(p, allocSize));
+    FAIL_IF(IsMemVRAMB(p, 0));
+    FAIL_IF(IsMemQTMRAM(p, allocSize));
+    FAIL_IF(IsMemQTMRAM(p, 0));
+    FAIL_IF(GetAllocSize(p) < allocSize);
+    FreeMem(p);
+
+    p = AllocMem(MemType_VRAM_B, allocSize);
+    FAIL_IF(!p);
+    FAIL_IF(IsMemAppHeap(p, allocSize));
+    FAIL_IF(IsMemAppHeap(p, 0));
+    FAIL_IF(IsMemFCRAM(p, allocSize));
+    FAIL_IF(IsMemFCRAM(p, 0));
+    FAIL_IF(IsMemVRAMA(p, allocSize));
+    FAIL_IF(IsMemVRAMA(p, 0));
+    FAIL_IF(!IsMemVRAMB(p, allocSize));
+    FAIL_IF(!IsMemVRAMB(p, 0));
     FAIL_IF(IsMemQTMRAM(p, allocSize));
     FAIL_IF(IsMemQTMRAM(p, 0));
     FAIL_IF(GetAllocSize(p) < allocSize);
@@ -75,23 +82,6 @@ DEFINE_TEST(RangeCheck) {
     FreeMem(p);
 #endif // CTR_ENABLE_QTMRAM
 
-    return true;
-}
-
-DEFINE_TEST(VRAMBank) {
-    void* p = AllocMemVRAM(VRAMBank_A, 8);
-    FAIL_IF(!p);
-    FAIL_IF(GetVRAMBank(p, 8) != VRAMBank_A);
-    FAIL_IF(GetVRAMBank(p, 0) != VRAMBank_A);
-
-    FreeMem(p);
-
-    p = AllocMemVRAM(VRAMBank_B, 8);
-    FAIL_IF(!p);
-    FAIL_IF(GetVRAMBank(p, 8) != VRAMBank_B);
-    FAIL_IF(GetVRAMBank(p, 0) != VRAMBank_B);
-
-    FreeMem(p);
     return true;
 }
 
@@ -144,7 +134,7 @@ DEFINE_TEST(GPUAccess) {
     FreeMem(p);
 
     // GPU has RW access on VRAM.
-    p = AllocMem(MemType_VRAM, allocSize);
+    p = AllocMem(MemType_VRAM_A | MemType_VRAM_B, allocSize);
     FAIL_IF(!p);
     FAIL_IF(GetGPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
     FreeMem(p);
@@ -177,7 +167,7 @@ DEFINE_TEST(VaToPa) {
     FreeMem(p);
 
     // VRAM
-    p = AllocMem(MemType_VRAM, allocSize);
+    p = AllocMem(MemType_VRAM_A | MemType_VRAM_B, allocSize);
     FAIL_IF(!p);
 
     pa = GetPhysicalAddress(p);

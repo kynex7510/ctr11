@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <CTR11/Allocator.h>
+#include <CTR11/Memory.h>
 #include <CTR11/Align.h>
 
 #include "QTMRAM.h"
@@ -53,7 +53,7 @@ static bool lazyInit(void) {
 }
 
 static void* insertNode(uintptr_t base, size_t size) {
-    MemoryBlock* b = (MemoryBlock*)AllocMem(MemType_Application, sizeof(MemoryBlock));
+    MemoryBlock* b = (MemoryBlock*)AllocMem(MemType_AppHeap, sizeof(MemoryBlock));
     if (b) {
         b->base = base;
         b->size = size;
