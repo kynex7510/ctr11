@@ -6,7 +6,7 @@
 
 #include <CTR11/Memory.h>
 
-void* AllocMemOrderedAligned(uint32_t* memTypes, size_t numTypes, size_t size, size_t alignment) {
+void* AllocMemOrderedAligned(const uint32_t* memTypes, size_t numTypes, size_t size, size_t alignment) {
     uint32_t mask = 0;
 
     for (size_t i = 0; i < numTypes; ++i) {
