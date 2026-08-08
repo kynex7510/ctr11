@@ -33,35 +33,20 @@ static double parseTime(double nsec, const char** timeString) {
     return time;
 }
 
-static void testCallback(size_t index, const TestResult* result) {
-    const char* timeString = NULL;
-    const double time = parseTime(result->nsec, &timeString);
-
-    CTR_LOG("[%u/%u] %s:", index + 1, GetNumTests(), GetTestName(index));
-    CTR_LOG(" %s", (result->passed ? "\x1b[92mPASS\x1b[0m" : "\x1b[91mFAIL\x1b[0m"));
-
-    if (!result->passed) {
-        CTR_LOG(" (R: %lu)", result->reason);
-    }
-
-    // libn3ds doesn't support doubles.
-#ifdef CTR_BM
-    CTR_LOG(" (%u%s)", (uint32_t)time, timeString);
-#else
-    CTR_LOG(" (%.2f%s)", time, timeString);
-#endif // CTR_BAREMETAL
-
-    CTR_LOG("\n");
-}
-
 size_t RunTests(TestCallback callback) {
     size_t success = 0;
 
     for (const TestEntry* current = &__start_ctrtests; current != &__stop_ctrtests; ++current) {
-        TestResult result;
+        const size_t index = current - &__start_ctrtests;
 
+        if (!callback) {
+            CTR_LOG("[%u/%u] %s:", index + 1, GetNumTests(), GetTestName(index));
+        }
+
+        TestResult result;
         TickTimer timer;
         uint64_t customTicks = 0;
+
         TickTimerStart(&timer);
         result.passed = current->func(&result.reason, &customTicks);
         const uint64_t deltaTime = TickTimerStop(&timer);
@@ -72,7 +57,27 @@ size_t RunTests(TestCallback callback) {
             result.nsec = TickTimerNs(deltaTime);
         }
 
-        (callback ? callback : testCallback)(current - &__start_ctrtests, &result);
+        if (callback) {
+            callback(index, &result);
+        } else {
+            CTR_LOG(" %s", (result.passed ? "\x1b[92mPASS\x1b[0m" : "\x1b[91mFAIL\x1b[0m"));
+
+            if (!result.passed) {
+                CTR_LOG(" (R: %lu)", result.reason);
+            }
+
+            const char* timeString = NULL;
+            const double time = parseTime(result.nsec, &timeString);
+
+            // libn3ds doesn't support doubles.
+#ifdef CTR_BM
+            CTR_LOG(" (%u%s)", (uint32_t)time, timeString);
+#else
+            CTR_LOG(" (%.2f%s)", time, timeString);
+#endif // CTR_BM
+
+            CTR_LOG("\n");
+        }
 
         if (result.passed)
             ++success;
