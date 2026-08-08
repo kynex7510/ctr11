@@ -4,30 +4,24 @@ if (CTR_BM)
 endif()
 
 # Setup library.
-set(CTR11_SOURCES Memory.c)
-
-if (CTR_ENABLE_QTMRAM)
-    set(CTR11_SOURCES ${CTR11_SOURCES} QTMRAM.c)
-endif()
+set(CTR11_SOURCES
+    Cache.c
+    Impl.c
+    Memory.c
+    QTMRAM.c
+    Random.c
+    Sync.c
+    Tick.c    
+)
 
 if (CTR_ENABLE_TESTING)
     set(CTR11_SOURCES ${CTR11_SOURCES} Testing.c)
-endif()
-
-if (CTR_BM)
-    set(CTR11_SOURCES ${CTR11_SOURCES} libn3ds.c)
-else()
-    set(CTR11_SOURCES ${CTR11_SOURCES} libctru.c)
 endif()
 
 add_library(ctr11 STATIC ${CTR11_SOURCES})
 
 target_include_directories(ctr11 PUBLIC ../Include PRIVATE .)
 target_compile_options(ctr11 PRIVATE -Wall -Werror)
-
-if (CTR_ENABLE_QTMRAM)
-    target_compile_definitions(ctr11 PRIVATE CTR_ENABLE_QTMRAM)
-endif()
 
 if (CTR_ENABLE_TESTING)
     target_compile_definitions(ctr11 PUBLIC CTR_ENABLE_TESTING)

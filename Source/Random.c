@@ -4,13 +4,18 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#ifdef CTR_BM
+#include <arm.h>
+#include <drivers/prng.h>
+#else
+#include <3ds.h>
+#endif // CTR_BM
+
 #include <CTR11/Random.h>
 
 #ifdef CTR_BM
-#include <drivers/prng.h>
 typedef u32 RandomValue;
 #else
-#include <3ds.h>
 typedef s32 RandomValue;
 #endif // CTR_BM
 

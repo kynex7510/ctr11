@@ -4,17 +4,21 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-#include <CTR11/Memory.h>
-#include <CTR11/Align.h>
-
-#include "QTMRAM.h"
-
 // TODO: consider using a truly platform-agnostic data structure.
-#ifdef __ARM11__
+#ifdef CTR_BM
+#include <types.h>
+#include <arm11/drivers/cfg11.h>
 #include <arm11/util/rbtree.h>
 #else
+#include <3ds.h>
 #include <3ds/util/rbtree.h>
-#endif // __ARM11__
+#endif // CTR_BM
+
+#include <CTR11/Memory.h>
+#include <CTR11/Align.h>
+#include <CTR11/Unreachable.h>
+
+#include "QTMRAM.h"
 
 typedef struct {
     rbtree_node_t node;
@@ -40,9 +44,43 @@ static int blockComparator(const rbtree_node_t* lhs, const rbtree_node_t* rhs) {
     return 0;
 }
 
+#ifdef CTR_BM
+
+static bool initRegion(void) {
+#ifdef HAS_QTMRAM
+    const u16 gpuprot = getCfg11Regs()->gpuprot;
+    const u8 qtmramFactor = (gpuprot >> 9) & 0x03;
+    const size_t qtmramSize = QTM_RAM_SIZE - (qtmramFactor * 0x100000);
+    
+    g_AllocBase = QTM_RAM_BASE;
+    g_MaxAllocSize = qtmramSize;
+    return true;
+#else
+    return false;
+#endif // HAS_QTMRAM
+}
+
+#else
+
+static bool initRegion(void) {
+    s64 base = 0;
+    s64 size = 0;
+
+    if (R_SUCCEEDED(svcGetProcessInfo(&base, CUR_PROCESS_HANDLE, 22))) {
+        if (R_SUCCEEDED(svcGetProcessInfo(&size, CUR_PROCESS_HANDLE, 23))) {
+            g_AllocBase = base;
+            g_MaxAllocSize = size;
+        }
+    }
+
+    return base && size;
+}
+
+#endif // CTR_BM
+
 static bool lazyInit(void) {
     if (!g_Initialized) {
-        if (!qtmramInitRegion(&g_AllocBase, &g_MaxAllocSize))
+        if (!initRegion())
             return false;
 
         rbtree_init(&g_Tree, blockComparator);
@@ -73,7 +111,8 @@ void qtmramQueryRegion(uintptr_t* regionBase, size_t* regionSize) {
 }
 
 void* qtmramMemAlign(size_t size, size_t alignment) {
-    lazyInit();
+    if (!lazyInit())
+        return NULL;
 
     if (alignment < 8)
         alignment = 8;
@@ -123,6 +162,8 @@ void qtmramFree(void* p) {
             rbtree_remove(&g_Tree, found, NULL);
             FreeMem(found);
         }
+    } else {
+        CTR_UNREACHABLE("qtmramFree called without being initialized");
     }
 }
 
@@ -133,7 +174,7 @@ size_t qtmramGetSize(const void* p) {
 
         rbtree_node_t* found = rbtree_find(&g_Tree, &b.node);
         return found ? ((MemoryBlock*)found)->size : 0;
+    } else {
+        CTR_UNREACHABLE("qtmramGetSize called without being initialized");
     }
-
-    return 0;
 }

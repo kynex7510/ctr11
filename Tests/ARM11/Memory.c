@@ -67,20 +67,20 @@ DEFINE_TEST(RangeCheck) {
     FAIL_IF(GetAllocSize(p) < allocSize);
     FreeMem(p);
 
-#ifdef CTR_ENABLE_QTMRAM
     p = AllocMem(MemType_QTMRAM, allocSize);
-    FAIL_IF(!p);
-    FAIL_IF(IsMemAppHeap(p, allocSize));
-    FAIL_IF(IsMemAppHeap(p, 0));
-    FAIL_IF(IsMemFCRAM(p, allocSize));
-    FAIL_IF(IsMemFCRAM(p, 0));
-    FAIL_IF(IsMemVRAM(p, allocSize));
-    FAIL_IF(IsMemVRAM(p, 0));
-    FAIL_IF(!IsMemQTMRAM(p, allocSize));
-    FAIL_IF(!IsMemQTMRAM(p, 0));
-    FAIL_IF(GetAllocSize(p) < allocSize);
-    FreeMem(p);
-#endif // CTR_ENABLE_QTMRAM
+    // QTMRAM might not be available.
+    if (p) {
+        FAIL_IF(IsMemAppHeap(p, allocSize));
+        FAIL_IF(IsMemAppHeap(p, 0));
+        FAIL_IF(IsMemFCRAM(p, allocSize));
+        FAIL_IF(IsMemFCRAM(p, 0));
+        FAIL_IF(IsMemVRAM(p, allocSize));
+        FAIL_IF(IsMemVRAM(p, 0));
+        FAIL_IF(!IsMemQTMRAM(p, allocSize));
+        FAIL_IF(!IsMemQTMRAM(p, 0));
+        FAIL_IF(GetAllocSize(p) < allocSize);
+        FreeMem(p);
+    }
 
     return true;
 }
@@ -139,13 +139,13 @@ DEFINE_TEST(GPUAccess) {
     FAIL_IF(GetGPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
     FreeMem(p);
 
-#ifdef CTR_ENABLE_QTMRAM
     // GPU has RW access on QTMRAM.
     p = AllocMem(MemType_QTMRAM, allocSize);
-    FAIL_IF(!p);
-    FAIL_IF(GetGPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
-    FreeMem(p);
-#endif // CTR_ENABLE_QTMRAM
+    // QTMRAM might not be available.
+    if (p) {
+        FAIL_IF(GetGPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
+        FreeMem(p);
+    }
 
     return true;
 }
@@ -153,7 +153,7 @@ DEFINE_TEST(GPUAccess) {
 DEFINE_TEST(VaToPa) {
     const size_t allocSize = 8;
 
-    // FCRAM
+    // FCRAM.
     void* p = AllocMem(MemType_FCRAM, allocSize);
     FAIL_IF(!p);
 
@@ -166,7 +166,7 @@ DEFINE_TEST(VaToPa) {
 
     FreeMem(p);
 
-    // VRAM
+    // VRAM.
     p = AllocMem(MemType_VRAM_A | MemType_VRAM_B, allocSize);
     FAIL_IF(!p);
 
@@ -179,20 +179,18 @@ DEFINE_TEST(VaToPa) {
 
     FreeMem(p);
 
-#ifdef CTR_ENABLE_QTMRAM
-    // QTMRAM
+    // QTMRAM (might not be available).
     p = AllocMem(MemType_QTMRAM, allocSize);
-    FAIL_IF(!p);
+    if (p) {
+        pa = GetPhysicalAddress(p);
+        FAIL_IF(!pa);
 
-    pa = GetPhysicalAddress(p);
-    FAIL_IF(!pa);
+        va = GetVirtualAddress(pa);
+        FAIL_IF(va == NULL);
+        FAIL_IF(va != p);
 
-    va = GetVirtualAddress(pa);
-    FAIL_IF(va == NULL);
-    FAIL_IF(va != p);
-
-    FreeMem(p);
-#endif // CTR_ENABLE_QTMRAM
+        FreeMem(p);
+    }
 
     return true;
 }

@@ -16,7 +16,9 @@ typedef struct CTRCVImpl* CV;
 extern "C" {
 #endif // __cplusplus
 
-void Yield(void);
+void Sleep(uint64_t ns);
+
+CTR_INLINE void Yield(void) { Sleep(0); }
 
 Mutex CreateMutex(void);
 void DestroyMutex(Mutex m);

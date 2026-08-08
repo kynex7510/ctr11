@@ -10,6 +10,7 @@
 #include <CTR11/Defs.h>
 
 typedef enum {
+    MemType_Unknown = 0x00,
     MemType_AppHeap = 0x01,
     MemType_FCRAM = 0x02,
     MemType_VRAM_A = 0x04,
@@ -26,15 +27,15 @@ typedef enum {
 extern "C" {
 #endif // __cplusplus
 
-void* AllocMemAligned(uint32_t memTypes, size_t size, size_t alignment);
-void* AllocMemOrderedAligned(const uint32_t* memTypes, size_t numTypes, size_t size, size_t alignment);
+void* AllocMemAligned(uint32_t memType, size_t size, size_t alignment);
+void* AllocAnyMemAligned(const uint32_t* memTypes, size_t numTypes, size_t size, size_t alignment);
 
-CTR_INLINE void* AllocMem(uint32_t memTypes, size_t size) { return AllocMemAligned(memTypes, size, 0); }
-CTR_INLINE void* AllocMemOrdered(const uint32_t* memTypes, size_t numTypes, size_t size) { return AllocMemOrderedAligned(memTypes, numTypes, size, 0); }
+CTR_INLINE void* AllocMem(uint32_t memType, size_t size) { return AllocMemAligned(memType, size, 0); }
+CTR_INLINE void* AllocAnyMem(const uint32_t* memTypes, size_t numTypes, size_t size) { return AllocAnyMemAligned(memTypes, numTypes, size, 0); }
 
 void FreeMem(void* p);
 
-uint32_t GetMemType(const void* p, size_t size);
+MemType GetMemType(const void* p, size_t size);
 size_t GetAllocSize(const void* p);
 
 CTR_INLINE bool IsMemAppHeap(const void* p, size_t size) { return GetMemType(p, size) == MemType_AppHeap; }
