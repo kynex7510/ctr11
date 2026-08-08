@@ -134,7 +134,7 @@ DEFINE_TEST(GPUAccess) {
     FreeMem(p);
 
     // GPU has RW access on VRAM.
-    p = AllocMem(MemType_VRAM_A | MemType_VRAM_B, allocSize);
+    p = AllocMem(MemType_VRAM, allocSize);
     FAIL_IF(!p);
     FAIL_IF(GetGPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
     FreeMem(p);
@@ -167,7 +167,7 @@ DEFINE_TEST(VaToPa) {
     FreeMem(p);
 
     // VRAM.
-    p = AllocMem(MemType_VRAM_A | MemType_VRAM_B, allocSize);
+    p = AllocMem(MemType_VRAM, allocSize);
     FAIL_IF(!p);
 
     pa = GetPhysicalAddress(p);

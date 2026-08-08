@@ -18,6 +18,7 @@
 #include <CTR11/Memory.h>
 #include <CTR11/Log.h>
 #include <CTR11/Break.h>
+#include <CTR11/Unreachable.h>
 
 #include <malloc.h>
 
@@ -36,53 +37,70 @@ extern u32 __ctru_linear_heap;
 extern u32 __ctru_linear_heap_size;
 #endif // CTR_BM
 
-void* AllocMemAligned(uint32_t memType, size_t size, size_t alignment) {
+void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
     if (!size)
         return NULL;
 
     if (!alignment)
         alignment = 1;
 
-    if (memType == MemType_AppHeap)
-        return memalign(alignment, size);
-
-    if (memType == MemType_FCRAM) {
+    switch (memType) {
+        case MemType_AppHeap:
+            return memalign(alignment, size);
+        case MemType_FCRAM:
 #ifdef CTR_BM
-        return fcramMemAlign(size, alignment);
+            return fcramMemAlign(size, alignment);
 #else
-        return linearMemAlign(size, alignment);
+            return linearMemAlign(size, alignment);
 #endif // CTR_BM
+        case MemType_VRAM:
+            // Let the allocator decide.
+            return vramMemAlign(size, alignment);
+        case MemType_VRAM_A:
+            return vramMemAlignAt(size, alignment, VRAM_ALLOC_A);
+        case MemType_VRAM_B:
+            return vramMemAlignAt(size, alignment, VRAM_ALLOC_B);
+        case MemType_QTMRAM:
+            return qtmramMemAlign(size, alignment);
+        default:
+            CTR_UNREACHABLE("Invalid memory type %u", (uint32_t)memType);
     }
-
-    // Let the allocator decide.
-    if (memType == (MemType_VRAM_A | MemType_VRAM_B)) {
-        return vramMemAlign(size, alignment);
-    } else if (memType == MemType_VRAM_A) {
-        return vramMemAlignAt(size, alignment, VRAM_ALLOC_A);
-    } else if (memType == MemType_VRAM_B) {
-        return vramMemAlignAt(size, alignment, VRAM_ALLOC_B);
-    }
-
-    if (memType == MemType_QTMRAM)
-        return qtmramMemAlign(size, alignment);
-
-    return NULL;
 }
 
-void* AllocAnyMemAligned(const uint32_t* memTypes, size_t numTypes, size_t size, size_t alignment) {
+static uint32_t getMemTypeMask(MemType memType) {
+    switch (memType) {
+        case MemType_AppHeap:
+            return 0x01;
+        case MemType_FCRAM:
+            return 0x02;
+        case MemType_VRAM_A:
+            return 0x04;
+        case MemType_VRAM_B:
+            return 0x08;
+        case MemType_VRAM:
+            return 0x04 | 0x08;
+        case MemType_QTMRAM:
+            return 0x10;
+        default:
+            CTR_UNREACHABLE("Invalid memory type %u", (uint32_t)memType);
+    }
+}
+
+void* AllocAnyMemAligned(const MemType* memTypes, size_t numTypes, size_t size, size_t alignment) {
     uint32_t mask = 0;
 
     for (size_t i = 0; i < numTypes; ++i) {
-        const uint32_t memType = memTypes[i];
+        const MemType memType = memTypes[i];
+        const uint32_t thisMask = getMemTypeMask(memType);
 
-        if ((mask & memType) == memType)
+        if ((mask & thisMask) == thisMask)
             continue;
 
         void* p = AllocMemAligned(memType, size, alignment);
         if (p)
             return p;
 
-        mask |= memType;
+        mask |= thisMask;
     }
 
     return NULL;

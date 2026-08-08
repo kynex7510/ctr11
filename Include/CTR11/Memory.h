@@ -10,12 +10,13 @@
 #include <CTR11/Defs.h>
 
 typedef enum {
-    MemType_Unknown = 0x00,
-    MemType_AppHeap = 0x01,
-    MemType_FCRAM = 0x02,
-    MemType_VRAM_A = 0x04,
-    MemType_VRAM_B = 0x08,
-    MemType_QTMRAM = 0x10,
+    MemType_AppHeap,
+    MemType_FCRAM,
+    MemType_VRAM,
+    MemType_VRAM_A,
+    MemType_VRAM_B,
+    MemType_QTMRAM,
+    MemType_Unknown,
 } MemType;
 
 typedef enum {
@@ -27,11 +28,11 @@ typedef enum {
 extern "C" {
 #endif // __cplusplus
 
-void* AllocMemAligned(uint32_t memType, size_t size, size_t alignment);
-void* AllocAnyMemAligned(const uint32_t* memTypes, size_t numTypes, size_t size, size_t alignment);
+void* AllocMemAligned(MemType memType, size_t size, size_t alignment);
+void* AllocAnyMemAligned(const MemType* memTypes, size_t numTypes, size_t size, size_t alignment);
 
-CTR_INLINE void* AllocMem(uint32_t memType, size_t size) { return AllocMemAligned(memType, size, 0); }
-CTR_INLINE void* AllocAnyMem(const uint32_t* memTypes, size_t numTypes, size_t size) { return AllocAnyMemAligned(memTypes, numTypes, size, 0); }
+CTR_INLINE void* AllocMem(MemType memType, size_t size) { return AllocMemAligned(memType, size, 0); }
+CTR_INLINE void* AllocAnyMem(const MemType* memTypes, size_t numTypes, size_t size) { return AllocAnyMemAligned(memTypes, numTypes, size, 0); }
 
 void FreeMem(void* p);
 
