@@ -5,6 +5,7 @@ endif()
 set(TEST_SOURCES
     Memory.c
     MemVars.s
+    Random.c
     Main.c  
 )
 
