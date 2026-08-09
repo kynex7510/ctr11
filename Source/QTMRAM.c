@@ -91,7 +91,7 @@ static bool lazyInit(void) {
 }
 
 static void* insertNode(uintptr_t base, size_t size) {
-    MemoryBlock* b = (MemoryBlock*)AllocMem(MemType_AppHeap, sizeof(MemoryBlock));
+    MemoryBlock* b = (MemoryBlock*)AllocTypedMem(sizeof(MemoryBlock), MemType_AppHeap);
     if (b) {
         b->base = base;
         b->size = size;

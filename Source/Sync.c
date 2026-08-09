@@ -55,7 +55,7 @@ void ReleaseMutex(Mutex m) {
 }
 
 CV CreateCV(void)  {
-    CV cv = AllocMem(MemType_AppHeap, sizeof(*cv));
+    CV cv = AllocTypedMem(sizeof(*cv), MemType_AppHeap);
     CTR_BREAK_IF(cv == NULL);
     cv->sema = createSemaphore(0);
     CTR_BREAK_IF(!cv->sema);
@@ -110,7 +110,7 @@ void BroadcastCV(CV cv) {
 void Sleep(uint64_t ns) { svcSleepThread(ns); }
 
 Mutex CreateMutex(void) {
-    LightLock* l = AllocMem(MemType_AppHeap, sizeof(LightLock));
+    LightLock* l = AllocTypedMem(sizeof(LightLock), MemType_AppHeap);
     CTR_BREAK_IF(l == NULL);
     LightLock_Init(l);
     return (Mutex)l;
@@ -132,7 +132,7 @@ void ReleaseMutex(Mutex m) {
 }
 
 CV CreateCV(void) {
-    CondVar* cv = AllocMem(MemType_AppHeap, sizeof(CondVar));
+    CondVar* cv = AllocTypedMem(sizeof(CondVar), MemType_AppHeap);
     CTR_BREAK_IF(cv == NULL);
     CondVar_Init(cv);
     return (CV)cv;

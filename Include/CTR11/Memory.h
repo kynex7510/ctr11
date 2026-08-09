@@ -28,11 +28,13 @@ typedef enum {
 extern "C" {
 #endif // __cplusplus
 
-void* AllocMemAligned(MemType memType, size_t size, size_t alignment);
-void* AllocAnyMemAligned(const MemType* memTypes, size_t numTypes, size_t size, size_t alignment);
+void* AllocMemAligned(size_t size, size_t alignment, uint32_t cpuAccess, uint32_t gpuAccess);
+void* AllocTypedMemAligned(size_t size, size_t alignment, MemType memType);
+void* AllocAnyTypeMemAligned(size_t size, size_t alignment, const MemType* memTypes, size_t numTypes);
 
-CTR_INLINE void* AllocMem(MemType memType, size_t size) { return AllocMemAligned(memType, size, 0); }
-CTR_INLINE void* AllocAnyMem(const MemType* memTypes, size_t numTypes, size_t size) { return AllocAnyMemAligned(memTypes, numTypes, size, 0); }
+CTR_INLINE void* AllocMem(size_t size, uint32_t cpuAccess, uint32_t gpuAccess) { return AllocMemAligned(size, 0, cpuAccess, gpuAccess); }
+CTR_INLINE void* AllocTypedMem(size_t size, MemType memType) { return AllocTypedMemAligned(size, 0, memType); }
+CTR_INLINE void* AllocAnyTypeMem(size_t size, const MemType* memTypes, size_t numTypes) { return AllocAnyTypeMemAligned(size, 0, memTypes, numTypes); }
 
 void FreeMem(void* p);
 

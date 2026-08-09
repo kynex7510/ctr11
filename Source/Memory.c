@@ -35,9 +35,12 @@ extern u32 __ctru_heap;
 extern u32 __ctru_heap_size;
 extern u32 __ctru_linear_heap;
 extern u32 __ctru_linear_heap_size;
+
+static uint32_t getVRAMCPUAccess(void);
+static uint32_t getQTMRAMCPUAccess(void);
 #endif // CTR_BM
 
-void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
+void* AllocTypedMemAligned(size_t size, size_t alignment, MemType memType) {
     if (!size)
         return NULL;
 
@@ -67,6 +70,65 @@ void* AllocMemAligned(MemType memType, size_t size, size_t alignment) {
     }
 }
 
+void* AllocMemAligned(size_t size, size_t alignment, uint32_t cpuAccess, uint32_t gpuAccess) {
+    if (!gpuAccess) {
+        if (!cpuAccess)
+            return NULL;
+
+#ifdef CTR_BM
+        // Everything is RW in baremetal.
+        // Prioritize application memory for CPU usage.
+        const MemType memTypes[4] = { MemType_AppHeap, MemType_FCRAM, MemType_QTMRAM, MemType_VRAM };
+        return AllocAnyTypeMemAligned(size, alignment, memTypes, sizeof(memTypes) / sizeof(MemType));
+#else
+        // These two are always RW.
+        // Prioritize application memory for CPU only usage.
+        const MemType memTypes[2] = { MemType_AppHeap, MemType_FCRAM };
+        void* p = AllocAnyTypeMemAligned(size, alignment, memTypes, sizeof(memTypes) / sizeof(MemType));
+
+        // Try QTMRAM.
+        if (!p && ((cpuAccess & getQTMRAMCPUAccess()) == cpuAccess))
+            p = AllocTypedMemAligned(size, alignment, MemType_QTMRAM);
+
+        // Try VRAM.
+        if (!p && ((cpuAccess & getVRAMCPUAccess()) == cpuAccess))
+            p = AllocTypedMemAligned(size, alignment, MemType_VRAM);
+
+        return p;
+#endif // CTR_BM
+    }
+
+    if (!cpuAccess) {
+        if (!gpuAccess)
+            return NULL;
+
+        // Everything is RW for the GPU.
+        // Prioritize FCRAM because it's the largest.
+        const MemType memTypes[3] = { MemType_FCRAM, MemType_VRAM, MemType_QTMRAM };
+        return AllocAnyTypeMemAligned(size, alignment, memTypes, sizeof(memTypes) / sizeof(MemType));
+    }
+
+#ifdef CTR_BM
+    // Everything is RW in baremetal.
+    // Prioritize FCRAM because it's the largest.
+    const MemType memTypes[3] = { MemType_FCRAM, MemType_VRAM, MemType_QTMRAM };
+    return AllocAnyTypeMemAligned(size, alignment, memTypes, sizeof(memTypes) / sizeof(MemType));
+#else
+    // FCRAM is always available as RW for both CPU and GPU.
+    void* p = AllocTypedMemAligned(size, alignment, MemType_FCRAM);
+
+    // QTMRAM CPU access depends on the ExHeader.
+    if (!p && ((cpuAccess & getQTMRAMCPUAccess()) == cpuAccess))
+        p = AllocTypedMemAligned(size, alignment, MemType_QTMRAM);
+
+    // VRAM CPU access depends on the ExHeader.
+    if (!p && ((cpuAccess & getVRAMCPUAccess()) == cpuAccess))
+        p = AllocTypedMemAligned(size, alignment, MemType_VRAM);
+    
+    return p;
+#endif // CTR_BM
+}
+
 static uint32_t getMemTypeMask(MemType memType) {
     switch (memType) {
         case MemType_AppHeap:
@@ -86,7 +148,7 @@ static uint32_t getMemTypeMask(MemType memType) {
     }
 }
 
-void* AllocAnyMemAligned(const MemType* memTypes, size_t numTypes, size_t size, size_t alignment) {
+void* AllocAnyTypeMemAligned(size_t size, size_t alignment, const MemType* memTypes, size_t numTypes) {
     uint32_t mask = 0;
 
     for (size_t i = 0; i < numTypes; ++i) {
@@ -96,7 +158,7 @@ void* AllocAnyMemAligned(const MemType* memTypes, size_t numTypes, size_t size, 
         if ((mask & thisMask) == thisMask)
             continue;
 
-        void* p = AllocMemAligned(memType, size, alignment);
+        void* p = AllocTypedMemAligned(size, alignment, memType);
         if (p)
             return p;
 
@@ -362,6 +424,40 @@ static Result queryRegionAccess(u32 base, size_t size, uint32_t* access) {
     return 0;
 }
 
+static uint32_t getVRAMCPUAccess(void) {
+    static uint32_t vramAccess = 0xFFFFFFFF;
+
+    if (vramAccess == 0xFFFFFFFF) {
+        uint32_t tmp;
+        CTR_BREAK_IF(R_FAILED(queryRegionAccess(OS_VRAM_VADDR, OS_VRAM_SIZE, &tmp)));
+
+        do {
+            __ldrex((s32*)&vramAccess);
+        } while (__strex((s32*)&vramAccess, tmp));
+    }
+
+    return vramAccess;
+}
+
+static uint32_t getQTMRAMCPUAccess(void) {
+    static uint32_t qtmramAccess = 0xFFFFFFFF;
+
+    if (qtmramAccess == 0xFFFFFFFF) {
+        uintptr_t qtmramBase = 0;
+        size_t qtmramSize = 0;
+        qtmramQueryRegion(&qtmramBase, &qtmramSize);
+
+        uint32_t tmp;
+        CTR_BREAK_IF(R_FAILED(queryRegionAccess(qtmramBase, qtmramSize, &tmp)));
+
+        do {
+            __ldrex((s32*)&qtmramAccess);
+        } while (__strex((s32*)&qtmramAccess, tmp));
+    }
+
+    return qtmramAccess;
+}
+
 uint32_t GetCPUAccess(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
@@ -378,40 +474,16 @@ uint32_t GetCPUAccess(const void* p, size_t size) {
         return fcramAccess;
 
     // VRAM access depends on the ExHeader.
-    if (checkRange(addr, size, OS_VRAM_VADDR, OS_VRAM_SIZE)) {
-        static uint32_t vramAccess = 0xFFFFFFFF;
+    if (checkRange(addr, size, OS_VRAM_VADDR, OS_VRAM_SIZE))
+        return getVRAMCPUAccess();
 
-        if (vramAccess == 0xFFFFFFFF) {
-            uint32_t tmp;
-            CTR_BREAK_IF(R_FAILED(queryRegionAccess(OS_VRAM_VADDR, OS_VRAM_SIZE, &tmp)));
-
-            do {
-                __ldrex((s32*)&vramAccess);
-            } while (__strex((s32*)&vramAccess, tmp));
-        }
-
-        return vramAccess;
-    }
-
+    // QTMRAM access depends on the ExHeader.
     uintptr_t qtmramBase = 0;
     size_t qtmramSize = 0;
     qtmramQueryRegion(&qtmramBase, &qtmramSize);
 
-    // QTMRAM access depends on the ExHeader.
-    if (checkRange(addr, size, qtmramBase, qtmramSize)) {
-        static uint32_t qtmramAccess = 0xFFFFFFFF;
-
-        if (qtmramAccess == 0xFFFFFFFF) {
-            uint32_t tmp;
-            CTR_BREAK_IF(R_FAILED(queryRegionAccess(qtmramBase, qtmramSize, &tmp)));
-
-            do {
-                __ldrex((s32*)&qtmramAccess);
-            } while (__strex((s32*)&qtmramAccess, tmp));
-        }
-
-        return qtmramAccess;
-    }
+    if (checkRange(addr, size, qtmramBase, qtmramSize))
+        return getQTMRAMCPUAccess();
 
     // Handle other memory.
     uint32_t otherAccess = 0;
