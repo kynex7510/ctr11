@@ -19,6 +19,7 @@
 #include <CTR11/Log.h>
 #include <CTR11/Break.h>
 #include <CTR11/Unreachable.h>
+#include <CTR11/Align.h>
 
 #include <malloc.h>
 
@@ -45,7 +46,7 @@ void* AllocTypedMemAligned(size_t size, size_t alignment, MemType memType) {
         return NULL;
 
     if (!alignment)
-        alignment = 1;
+        alignment = 8;
 
     switch (memType) {
         case MemType_AppHeap:
@@ -99,6 +100,13 @@ void* AllocMemAligned(size_t size, size_t alignment, uint32_t access) {
 
         return p;
 #endif // CTR_BM
+    }
+
+    // The following operations all involve the GPU, hence ensure addresses are 8 bytes aligned.
+    if (alignment) {
+        alignment = AlignUp(alignment, 8);
+    } else {
+        alignment = 8;
     }
 
     if (!(access & cpuMask)) {
