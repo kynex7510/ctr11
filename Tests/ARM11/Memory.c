@@ -86,64 +86,66 @@ DEFINE_TEST(RangeCheck) {
 }
 
 DEFINE_TEST(CPUAccess) {
+    const uint32_t cpuMask = MemAccess_CPURead | MemAccess_CPUWrite;
     const size_t allocSize = 8;
 
     // CPU has read only access on .text.
     extern uint32_t memoryTestTextVar;
-    FAIL_IF(GetCPUAccess(&memoryTestTextVar, sizeof(uint32_t)) != MemAccess_Read);
+    FAIL_IF((GetMemAccess(&memoryTestTextVar, sizeof(uint32_t)) & cpuMask) != MemAccess_CPURead);
 
     // CPU has read only access on .rodata.
     extern uint32_t memoryTestRodataVar;
-    FAIL_IF(GetCPUAccess(&memoryTestRodataVar, sizeof(uint32_t)) != MemAccess_Read);
+    FAIL_IF((GetMemAccess(&memoryTestRodataVar, sizeof(uint32_t)) & cpuMask) != MemAccess_CPURead);
 
     // CPU has RW access on .data.
     extern uint32_t memoryTestDataVar;
-    FAIL_IF(GetCPUAccess(&memoryTestDataVar, sizeof(uint32_t)) != (MemAccess_Read | MemAccess_Write));
+    FAIL_IF((GetMemAccess(&memoryTestDataVar, sizeof(uint32_t)) & cpuMask) != (MemAccess_CPURead | MemAccess_CPUWrite));
 
     // CPU has RW access on stack.
-    FAIL_IF(GetCPUAccess(&reason, sizeof(uint32_t*)) != (MemAccess_Read | MemAccess_Write));
+    FAIL_IF((GetMemAccess(&reason, sizeof(uint32_t*)) & cpuMask) != (MemAccess_CPURead | MemAccess_CPUWrite));
 
     // CPU has RW access on app heap.
     void* p = AllocTypedMem(allocSize, MemType_AppHeap);
     FAIL_IF(!p);    
-    FAIL_IF(GetCPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
+    FAIL_IF((GetMemAccess(p, allocSize) & cpuMask) != (MemAccess_CPURead | MemAccess_CPUWrite));
     FreeMem(p);
 
     // CPU has RW access on FCRAM.
     p = AllocTypedMem(allocSize, MemType_FCRAM);
     FAIL_IF(!p);
-    FAIL_IF(GetCPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
+    FAIL_IF((GetMemAccess(p, allocSize) & cpuMask) != (MemAccess_CPURead | MemAccess_CPUWrite));
     FreeMem(p);
 
     return true;
 }
 
 DEFINE_TEST(GPUAccess) {
+    const uint32_t gpuMask = MemAccess_GPURead | MemAccess_GPUWrite;
     const size_t allocSize = 8;
 
     // GPU has no access on app heap.
     void* p = AllocTypedMem(allocSize, MemType_AppHeap);
     FAIL_IF(!p);
-    FAIL_IF(GetGPUAccess(p, allocSize));
+    FAIL_IF(GetMemAccess(p, allocSize) & gpuMask);
     FreeMem(p);
 
     // GPU has RW access on FCRAM.
     p = AllocTypedMem(allocSize, MemType_FCRAM);
     FAIL_IF(!p);
-    FAIL_IF(GetGPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
+    FAIL_IF((GetMemAccess(p, allocSize) & gpuMask) != (MemAccess_GPURead | MemAccess_GPUWrite));
     FreeMem(p);
 
     // GPU has RW access on VRAM.
     p = AllocTypedMem(allocSize, MemType_VRAM);
     FAIL_IF(!p);
-    FAIL_IF(GetGPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
+    FAIL_IF((GetMemAccess(p, allocSize) & gpuMask) != (MemAccess_GPURead | MemAccess_GPUWrite));
     FreeMem(p);
 
     // GPU has RW access on QTMRAM.
     p = AllocTypedMem(allocSize, MemType_QTMRAM);
     // QTMRAM might not be available.
     if (p) {
-        FAIL_IF(GetGPUAccess(p, allocSize) != (MemAccess_Read | MemAccess_Write));
+        FAIL_IF((GetMemAccess(p, allocSize) & gpuMask) != (MemAccess_GPURead | MemAccess_GPUWrite));
         FreeMem(p);
     }
 
@@ -153,61 +155,57 @@ DEFINE_TEST(GPUAccess) {
 DEFINE_TEST(AccessFlags) {
     const size_t allocSize = 8;
 
-    void* p = AllocMem(allocSize, 0, 0);
+    void* p = AllocMem(allocSize, 0);
     FAIL_IF(p);
 
-    p = AllocMem(allocSize, MemAccess_Read, 0);
+    p = AllocMem(allocSize, MemAccess_CPURead);
     FAIL_IF(!p);
-    FAIL_IF(!(GetCPUAccess(p, allocSize) & MemAccess_Read));
+    FAIL_IF(!(GetMemAccess(p, allocSize) & MemAccess_CPURead));
     FreeMem(p);
 
-    p = AllocMem(allocSize, MemAccess_Write, 0);
+    p = AllocMem(allocSize, MemAccess_CPUWrite);
     FAIL_IF(!p);
-    FAIL_IF(!(GetCPUAccess(p, allocSize) & MemAccess_Write));
+    FAIL_IF(!(GetMemAccess(p, allocSize) & MemAccess_CPUWrite));
     FreeMem(p);
 
-    p = AllocMem(allocSize, MemAccess_Read | MemAccess_Write, 0);
+    p = AllocMem(allocSize, MemAccess_CPURead | MemAccess_CPUWrite);
     FAIL_IF(!p);
-    FAIL_IF(!(GetCPUAccess(p, allocSize) & (MemAccess_Read | MemAccess_Write)));
+    FAIL_IF(!(GetMemAccess(p, allocSize) & (MemAccess_CPURead | MemAccess_CPUWrite)));
     FreeMem(p);
 
-    p = AllocMem(allocSize, 0, MemAccess_Read);
+    p = AllocMem(allocSize, MemAccess_GPURead);
     FAIL_IF(!p);
-    FAIL_IF(!(GetGPUAccess(p, allocSize) & MemAccess_Read));
+    FAIL_IF(!(GetMemAccess(p, allocSize) & MemAccess_GPURead));
     FreeMem(p);
 
-    p = AllocMem(allocSize, 0, MemAccess_Write);
+    p = AllocMem(allocSize, MemAccess_GPUWrite);
     FAIL_IF(!p);
-    FAIL_IF(!(GetGPUAccess(p, allocSize) & MemAccess_Write));
+    FAIL_IF(!(GetMemAccess(p, allocSize) & MemAccess_GPURead));
     FreeMem(p);
 
-    p = AllocMem(allocSize, 0, MemAccess_Read | MemAccess_Write);
+    p = AllocMem(allocSize, MemAccess_GPURead | MemAccess_GPUWrite);
     FAIL_IF(!p);
-    FAIL_IF(!(GetGPUAccess(p, allocSize) & (MemAccess_Read | MemAccess_Write)));
+    FAIL_IF(!(GetMemAccess(p, allocSize) & (MemAccess_GPURead | MemAccess_GPUWrite)));
     FreeMem(p);
 
-    p = AllocMem(allocSize, MemAccess_Read, MemAccess_Read);
+    p = AllocMem(allocSize, MemAccess_CPURead | MemAccess_GPURead);
     FAIL_IF(!p);
-    FAIL_IF(!(GetCPUAccess(p, allocSize) & MemAccess_Read));
-    FAIL_IF(!(GetGPUAccess(p, allocSize) & MemAccess_Read));
+    FAIL_IF(!(GetMemAccess(p, allocSize) & (MemAccess_CPURead | MemAccess_GPURead)));
     FreeMem(p);
 
-    p = AllocMem(allocSize, MemAccess_Read | MemAccess_Write, MemAccess_Read);
+    p = AllocMem(allocSize, MemAccess_CPURead | MemAccess_CPUWrite | MemAccess_GPURead);
     FAIL_IF(!p);
-    FAIL_IF(!(GetCPUAccess(p, allocSize) & (MemAccess_Read | MemAccess_Write)));
-    FAIL_IF(!(GetGPUAccess(p, allocSize) & MemAccess_Read));
+    FAIL_IF(!(GetMemAccess(p, allocSize) & (MemAccess_CPURead | MemAccess_CPUWrite | MemAccess_GPURead)));
     FreeMem(p);
 
-    p = AllocMem(allocSize, MemAccess_Read, MemAccess_Read | MemAccess_Write);
+    p = AllocMem(allocSize, MemAccess_CPURead | MemAccess_GPURead | MemAccess_GPUWrite);
     FAIL_IF(!p);
-    FAIL_IF(!(GetCPUAccess(p, allocSize) & MemAccess_Read));
-    FAIL_IF(!(GetGPUAccess(p, allocSize) & (MemAccess_Read | MemAccess_Write)));
+    FAIL_IF(!(GetMemAccess(p, allocSize) & (MemAccess_CPURead | MemAccess_GPURead | MemAccess_GPUWrite)));
     FreeMem(p);
 
-    p = AllocMem(allocSize, MemAccess_Read | MemAccess_Write, MemAccess_Read | MemAccess_Write);
+    p = AllocMem(allocSize, MemAccess_CPURead | MemAccess_CPUWrite | MemAccess_GPURead | MemAccess_GPUWrite);
     FAIL_IF(!p);
-    FAIL_IF(!(GetCPUAccess(p, allocSize) & (MemAccess_Read | MemAccess_Write)));
-    FAIL_IF(!(GetGPUAccess(p, allocSize) & (MemAccess_Read | MemAccess_Write)));
+    FAIL_IF(!(GetMemAccess(p, allocSize) & (MemAccess_CPURead | MemAccess_CPUWrite | MemAccess_GPURead | MemAccess_GPUWrite)));
     FreeMem(p);
 
     return true;

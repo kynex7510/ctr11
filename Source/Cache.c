@@ -15,10 +15,18 @@ void FlushDataCache(const void* addr, size_t size) { flushDCacheRange(addr, size
 #include <CTR11/Break.h>
 
 void InvalidateDataCache(const void* addr, size_t size) {
+#if 0
+    CTR_BREAK_IF(R_FAILED(GSPGPU_InvalidateDataCache((u32)addr, size)));
+#else
     CTR_BREAK_IF(R_FAILED(svcInvalidateProcessDataCache(CUR_PROCESS_HANDLE, (u32)addr, size)));
+#endif // 0
 }
 
 void FlushDataCache(const void* addr, size_t size) {
+#if 0
+    CTR_BREAK_IF(R_FAILED(GSPGPU_FlushDataCache((u32)addr, size)));
+#else
     CTR_BREAK_IF(R_FAILED(svcFlushProcessDataCache(CUR_PROCESS_HANDLE, (u32)addr, size)));
+#endif // 0
 }
 #endif // CTR_BM

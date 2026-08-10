@@ -70,9 +70,12 @@ void* AllocTypedMemAligned(size_t size, size_t alignment, MemType memType) {
     }
 }
 
-void* AllocMemAligned(size_t size, size_t alignment, uint32_t cpuAccess, uint32_t gpuAccess) {
-    if (!gpuAccess) {
-        if (!cpuAccess)
+void* AllocMemAligned(size_t size, size_t alignment, uint32_t access) {
+    const uint32_t cpuMask = MemAccess_CPURead | MemAccess_CPUWrite;
+    const uint32_t gpuMask = MemAccess_GPURead | MemAccess_GPUWrite;
+
+    if (!(access & gpuMask)) {
+        if (!(access & cpuMask))
             return NULL;
 
 #ifdef CTR_BM
@@ -87,19 +90,19 @@ void* AllocMemAligned(size_t size, size_t alignment, uint32_t cpuAccess, uint32_
         void* p = AllocAnyTypeMemAligned(size, alignment, memTypes, sizeof(memTypes) / sizeof(MemType));
 
         // Try QTMRAM.
-        if (!p && ((cpuAccess & getQTMRAMCPUAccess()) == cpuAccess))
+        if (!p && ((access & getQTMRAMCPUAccess()) == access))
             p = AllocTypedMemAligned(size, alignment, MemType_QTMRAM);
 
         // Try VRAM.
-        if (!p && ((cpuAccess & getVRAMCPUAccess()) == cpuAccess))
+        if (!p && ((access & getVRAMCPUAccess()) == access))
             p = AllocTypedMemAligned(size, alignment, MemType_VRAM);
 
         return p;
 #endif // CTR_BM
     }
 
-    if (!cpuAccess) {
-        if (!gpuAccess)
+    if (!(access & cpuMask)) {
+        if (!(access & gpuMask))
             return NULL;
 
         // Everything is RW for the GPU.
@@ -118,11 +121,11 @@ void* AllocMemAligned(size_t size, size_t alignment, uint32_t cpuAccess, uint32_
     void* p = AllocTypedMemAligned(size, alignment, MemType_FCRAM);
 
     // QTMRAM CPU access depends on the ExHeader.
-    if (!p && ((cpuAccess & getQTMRAMCPUAccess()) == cpuAccess))
+    if (!p && ((access & getQTMRAMCPUAccess()) == access))
         p = AllocTypedMemAligned(size, alignment, MemType_QTMRAM);
 
     // VRAM CPU access depends on the ExHeader.
-    if (!p && ((cpuAccess & getVRAMCPUAccess()) == cpuAccess))
+    if (!p && ((access & getVRAMCPUAccess()) == access))
         p = AllocTypedMemAligned(size, alignment, MemType_VRAM);
     
     return p;
@@ -265,7 +268,7 @@ size_t GetAllocSize(const void* p) {
 uintptr_t GetPhysicalAddress(const void* addr) { return (uintptr_t)addr; }
 void* GetVirtualAddress(uintptr_t addr) { return (void*)addr; }
 
-static uint32_t queryMemoryAccess(u32 addr) {
+static uint32_t queryCPUMemAccess(u32 addr) {
     // Walk the translation tables.
     const u32* l1Table = (const u32*)(__getTtbr0() & 0xFFFFF000);
     const u32 l1Entry = l1Table[addr >> 20];
@@ -276,7 +279,7 @@ static uint32_t queryMemoryAccess(u32 addr) {
         const u32 l2Entry = l2Table[(addr >> 12) & 0xFF];
         const u32 perm = (l2Entry >> 4) & 0x3F;
         if (perm)
-            return (perm >> 5) ? MemAccess_Read : (MemAccess_Read | MemAccess_Write);
+            return (perm >> 5) ? MemAccess_CPURead : (MemAccess_CPURead | MemAccess_CPUWrite);
 
         return 0;
     }
@@ -285,20 +288,20 @@ static uint32_t queryMemoryAccess(u32 addr) {
     if ((l1Entry & 0x03) == 0x02) {
         // Always RW if mapped.
         // TODO: implement generic logic.
-        return ((l1Entry >> 10) & 0x3F) ? (MemAccess_Read | MemAccess_Write) : 0;
+        return ((l1Entry >> 10) & 0x3F) ? (MemAccess_CPURead | MemAccess_CPUWrite) : 0;
     }
 
     return 0;
 }
 
-static uint32_t queryRegionAccess(u32 addr, size_t size) {
-    const uint32_t access = queryMemoryAccess(addr);
+static uint32_t queryCPUAccess(u32 addr, size_t size) {
+    const uint32_t access = queryCPUMemAccess(addr);
 
     if (!access)
         return 0;
 
     for (size_t i = 0x1000; i < size; i += 0x1000) {
-        if (queryMemoryAccess(addr + i) != access)
+        if (queryCPUMemAccess(addr + i) != access)
             return 0;
     }
 
@@ -309,7 +312,7 @@ uint32_t GetCPUAccess(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
     // These are all RW.
-    const uint32_t sharedAccess = MemAccess_Read | MemAccess_Write;
+    const uint32_t sharedAccess = MemAccess_CPURead | MemAccess_CPUWrite;
 
     bool b = checkRange(addr, size, (u32)&__bss_end__, fake_heap_end - &__bss_end__) ||
         checkRange(addr, size, FCRAM_BASE, FCRAM_SIZE + FCRAM_EXT_SIZE) ||
@@ -329,7 +332,7 @@ uint32_t GetGPUAccess(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
     // If it's accessible GPU has RW access.
-    const uint32_t sharedAccess = MemAccess_Read | MemAccess_Write;
+    const uint32_t sharedAccess = MemAccess_GPURead | MemAccess_GPUWrite;
 
     const u16 gpuprot = getCfg11Regs()->gpuprot;
 
@@ -391,7 +394,7 @@ void* GetVirtualAddress(uintptr_t addr) {
     return 0;
 }
 
-static Result queryRegionAccess(u32 base, size_t size, uint32_t* access) {
+static Result queryCPUAccess(u32 base, size_t size, uint32_t* access) {
     MemInfo memInfo;
     PageInfo pageInfo;
     
@@ -415,10 +418,10 @@ static Result queryRegionAccess(u32 base, size_t size, uint32_t* access) {
 
     if (memInfo.size >= size) {
         if (memInfo.perm & MEMPERM_READ)
-            *access |= MemAccess_Read;
+            *access |= MemAccess_CPURead;
 
         if (memInfo.perm & MEMPERM_WRITE)
-            *access |= MemAccess_Write;
+            *access |= MemAccess_CPUWrite;
     }
 
     return 0;
@@ -429,7 +432,7 @@ static uint32_t getVRAMCPUAccess(void) {
 
     if (vramAccess == 0xFFFFFFFF) {
         uint32_t tmp;
-        CTR_BREAK_IF(R_FAILED(queryRegionAccess(OS_VRAM_VADDR, OS_VRAM_SIZE, &tmp)));
+        CTR_BREAK_IF(R_FAILED(queryCPUAccess(OS_VRAM_VADDR, OS_VRAM_SIZE, &tmp)));
 
         do {
             __ldrex((s32*)&vramAccess);
@@ -448,7 +451,7 @@ static uint32_t getQTMRAMCPUAccess(void) {
         qtmramQueryRegion(&qtmramBase, &qtmramSize);
 
         uint32_t tmp;
-        CTR_BREAK_IF(R_FAILED(queryRegionAccess(qtmramBase, qtmramSize, &tmp)));
+        CTR_BREAK_IF(R_FAILED(queryCPUAccess(qtmramBase, qtmramSize, &tmp)));
 
         do {
             __ldrex((s32*)&qtmramAccess);
@@ -458,12 +461,12 @@ static uint32_t getQTMRAMCPUAccess(void) {
     return qtmramAccess;
 }
 
-uint32_t GetCPUAccess(const void* p, size_t size) {
+static uint32_t getCPUAccess(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
     // These are fixed.
-    const uint32_t heapAccess = MemAccess_Read | MemAccess_Write;
-    const uint32_t fcramAccess = MemAccess_Read | MemAccess_Write;
+    const uint32_t heapAccess = MemAccess_CPURead | MemAccess_CPUWrite;
+    const uint32_t fcramAccess = MemAccess_CPURead | MemAccess_CPUWrite;
 
     // Check for libctru heap instead of fake heap because stack is mapped in the 
     // heap area for legacy reasons, hence it's more efficient for stack addresses.
@@ -487,15 +490,15 @@ uint32_t GetCPUAccess(const void* p, size_t size) {
 
     // Handle other memory.
     uint32_t otherAccess = 0;
-    queryRegionAccess(addr, size, &otherAccess);
+    queryCPUAccess(addr, size, &otherAccess);
     return otherAccess;
 }
 
-uint32_t GetGPUAccess(const void* p, size_t size) {
+static uint32_t getGPUAccess(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
     // If it's accessible GPU has RW access.
-    const uint32_t sharedAccess = MemAccess_Read | MemAccess_Write;
+    const uint32_t sharedAccess = MemAccess_GPURead | MemAccess_GPUWrite;
 
     bool b = checkRange(addr, size, OS_VRAM_VADDR, OS_VRAM_SIZE) ||
         checkRange(addr, size, __ctru_linear_heap, __ctru_linear_heap_size);
@@ -511,3 +514,7 @@ uint32_t GetGPUAccess(const void* p, size_t size) {
 }
 
 #endif // CTR_BM
+
+uint32_t GetMemAccess(const void* p, size_t size) {
+    return getCPUAccess(p, size) | getGPUAccess(p, size);
+}
