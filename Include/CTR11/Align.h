@@ -13,7 +13,7 @@
 extern "C" {
 #endif // __cplusplus
 
-CTR_INLINE bool IsPowerOf2(uint32_t v) { return !(v & (v - 1)); }
+CTR_INLINE bool IsPowerOf2(uint32_t v) { return v && !(v & (v - 1)); }
 
 CTR_INLINE bool IsAligned(uint32_t v, uint32_t alignment) {
     CTR_ASSERT(IsPowerOf2(alignment));
