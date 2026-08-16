@@ -12,10 +12,10 @@
 
 /* CTR_UNREACHABLE */
 
-#define CTR_UNREACHABLE(...)           \
-    do {                               \
-        CTR_LOG_LOCATION(__VA_ARGS__); \
-        CTR_BREAK();                   \
+#define CTR_UNREACHABLE(...)                     \
+    do {                                         \
+        CTR_LOG_LOCATION(__VA_ARGS__);           \
+        impl_CTR11_GLOBAL_NS impl_ctr11_break(); \
     } while (false)
 
 #endif /* GUARD_CTR11_UNREACHABLE_H */

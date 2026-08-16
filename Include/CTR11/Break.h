@@ -20,7 +20,7 @@
     do {                                                                              \
         if (CTR_UNLIKELY(cond)) {                                                     \
             CTR_LOG_LOCATION("Program broke execution: " impl_CTR11_AS_STRING(cond)); \
-            CTR_BREAK();                                                              \
+            impl_CTR11_GLOBAL_NS impl_ctr11_break();                                  \
         }                                                                             \
     } while (false)
 

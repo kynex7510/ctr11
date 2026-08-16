@@ -22,11 +22,9 @@
 #define CTR_LOG_DEBUG(...)
 #endif // !NDEBUG
 
-#define CTR_LOG_LOCATION(...)                                        \
-    do {                                                             \
-        CTR_LOG_DEBUG(__VA_ARGS__);                                  \
-        CTR_LOG_DEBUG("- In file: " __FILE__);                       \
-        CTR_LOG_DEBUG("- On line: " impl_CTR11_AS_STRING(__LINE__)); \
+#define CTR_LOG_LOCATION(...)                                                            \
+    do {                                                                                 \
+        CTR_LOG_DEBUG("[" __FILE__ ":" impl_CTR11_AS_STRING(__LINE__) "] " __VA_ARGS__); \
     } while (false)
 
 #ifdef __cplusplus

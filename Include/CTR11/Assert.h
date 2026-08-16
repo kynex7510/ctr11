@@ -17,7 +17,7 @@
     do {                                                                       \
         if (!CTR_LIKELY(cond)) {                                               \
             CTR_LOG_LOCATION("Assertion failed: " impl_CTR11_AS_STRING(cond)); \
-            CTR_BREAK();                                                       \
+            impl_CTR11_GLOBAL_NS impl_ctr11_break();                           \
         }                                                                      \
     } while (false)
 
