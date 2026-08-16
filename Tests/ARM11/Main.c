@@ -41,7 +41,7 @@ int main(int argc, char* argv[]) {
 int main(int argc, char* argv[]) {
     gfxInitDefault();
     consoleInit(GFX_TOP, NULL);
-    
+
     RunTests(NULL);
 
     while (aptMainLoop()) {

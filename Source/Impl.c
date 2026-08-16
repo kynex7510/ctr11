@@ -12,6 +12,7 @@
 #else
 #include <3ds.h>
 #include <stdio.h>
+#include <string.h>
 #endif // CTR_BM
 
 #include <CTR11/Break.h>
@@ -37,11 +38,21 @@ void impl_ctr11_break(void) {
         svcBreak(USERBREAK_PANIC);
 }
 
-// CTR_LOG
+static bool isLogDeviceSVC(void) { return stderr->_flags & __SLBF; }
 
 void impl_ctr11_vlog(const char* fmt, va_list args) {
-    vfprintf(stderr, fmt, args);
-    fflush(stderr);
+    if (isLogDeviceSVC()) {
+        // Do not print new line in SVC mode.
+        if (!strcmp(fmt, "\n")) {
+            fflush(stderr);
+        } else {
+            vfprintf(stderr, fmt, args);
+        }
+    } else {
+        // Always flush in console mode.
+        vfprintf(stderr, fmt, args);
+        fflush(stderr);
+    }
 }
 
 #endif // CTR_BM

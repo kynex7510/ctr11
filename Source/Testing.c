@@ -76,7 +76,7 @@ size_t RunTests(TestCallback callback) {
             CTR_LOG(" (%.2f%s)", time, timeString);
 #endif // CTR_BM
 
-            CTR_LOG("\n");
+            CTR_LOG_EOL();
         }
 
         if (result.passed)
@@ -87,8 +87,8 @@ size_t RunTests(TestCallback callback) {
         const size_t numTests = GetNumTests();
         const size_t ratio = (double)success / numTests * 100;
         const size_t failed = numTests - success;
-        CTR_LOG("-----------------------------------\n");
-        CTR_LOG("%u%% tests passed, %u tests failed out of %u\n", ratio, failed, numTests);
+        CTR_LOG_LINE("-----------------------------------");
+        CTR_LOG_LINE("%u%% tests passed, %u tests failed out of %u", ratio, failed, numTests);
     }
 
     return success;

@@ -16,15 +16,29 @@
         impl_CTR11_GLOBAL_NS impl_ctr11_log(__VA_ARGS__); \
     } while (false)
 
+#define CTR_LOG_EOL() CTR_LOG("\n")
+
+#define CTR_LOG_LINE(...)     \
+    do {                      \
+        CTR_LOG(__VA_ARGS__); \
+        CTR_LOG_EOL();        \
+    } while (false)
+
 #ifndef NDEBUG
 #define CTR_LOG_DEBUG(...) CTR_LOG(__VA_ARGS__)
+#define CTR_LOG_EOL_DEBUG() CTR_LOG_EOL()
+#define CTR_LOG_LINE_DEBUG(...) CTR_LOG_LINE(__VA_ARGS__)
 #else
 #define CTR_LOG_DEBUG(...)
+#define CTR_LOG_FLUSH_DEBUG()
+#define CTR_LOG_LINE_DEBUG(...)
 #endif // !NDEBUG
 
-#define CTR_LOG_LOCATION(...)                                                            \
-    do {                                                                                 \
-        CTR_LOG_DEBUG("[" __FILE__ ":" impl_CTR11_AS_STRING(__LINE__) "] " __VA_ARGS__); \
+#define CTR_LOG_LOCATION(...)                                                                 \
+    do {                                                                                      \
+        CTR_LOG_DEBUG("[" __FILE__ ":" impl_CTR11_AS_STRING(__LINE__) "] ");                  \
+        CTR_LOG_DEBUG(__VA_ARGS__);                                                           \
+        CTR_LOG_EOL_DEBUG();                                                                  \
     } while (false)
 
 #ifdef __cplusplus
