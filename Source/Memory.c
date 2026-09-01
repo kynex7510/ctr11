@@ -4,6 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+// Access functions can take any buffer as input, as such ranges must be explicit (ie. cannot assume it's the same for the allocators).
+
 #ifdef CTR_BM
 #include <arm.h>
 #include <types.h>
@@ -214,37 +216,20 @@ static inline bool checkRange(u32 p, size_t size, u32 rangeBase, size_t rangeSiz
 MemType GetMemType(const void* p, size_t size) {
     const u32 addr = (u32)p;
 
-#ifdef CTR_BM
-    if (checkRange(addr, size, (u32)&__bss_end__, fake_heap_end - &__bss_end__))
+    if (checkRange(addr, size, (u32)GetMemRegionBase(MemType_AppHeap), GetMemRegionSize(MemType_AppHeap)))
         return MemType_AppHeap;
 
-    if (checkRange(addr, size, FCRAM_BASE, FCRAM_SIZE + FCRAM_EXT_SIZE))
+    if (checkRange(addr, size, (u32)GetMemRegionBase(MemType_FCRAM), GetMemRegionSize(MemType_FCRAM)))
         return MemType_FCRAM;
 
-    if (checkRange(addr, size, VRAM_BANK0, VRAM_BANK_SIZE))
+    if (checkRange(addr, size, (u32)GetMemRegionBase(MemType_VRAM_A), GetMemRegionSize(MemType_VRAM_A)))
         return MemType_VRAM_A;
 
-    if (checkRange(addr, size, VRAM_BANK1, VRAM_BANK_SIZE))
+    if (checkRange(addr, size, (u32)GetMemRegionBase(MemType_VRAM_B), GetMemRegionSize(MemType_VRAM_B)))
         return MemType_VRAM_B;
 
-    if (checkRange(addr, size, QTM_RAM_BASE, QTM_RAM_SIZE))
+    if (checkRange(addr, size, (u32)GetMemRegionBase(MemType_QTMRAM), GetMemRegionSize(MemType_QTMRAM)))
         return MemType_QTMRAM;
-#else
-    if (checkRange(addr, size, (u32)fake_heap_start, fake_heap_end - fake_heap_start))
-        return MemType_AppHeap;
-
-    if (checkRange(addr, size, __ctru_linear_heap, __ctru_linear_heap_size))
-        return MemType_FCRAM;
-
-    if (checkRange(addr, size, OS_VRAM_VADDR, OS_VRAM_SIZE / 2))
-        return MemType_VRAM_A;
-
-    if (checkRange(addr, size, OS_VRAM_VADDR + (OS_VRAM_SIZE / 2), OS_VRAM_SIZE / 2))
-        return MemType_VRAM_B;
-
-    if (checkRange(addr, size, OS_QTMRAM_VADDR, OS_QTMRAM_SIZE))
-        return MemType_QTMRAM;
-#endif // CTR_BM
 
     CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
     return MemType_Unknown;
@@ -272,6 +257,51 @@ size_t GetAllocSize(const void* p) {
 }
 
 #ifdef CTR_BM
+
+static inline bool isNew3DS(void) { return getCfg11Regs()->socinfo & SOCINFO_LGR2; }
+
+void* GetMemRegionBase(MemType memType) {
+    uintptr_t qtmramBase = 0;
+
+    switch (memType) {
+        case MemType_AppHeap:
+            return &__bss_end__;
+        case MemType_FCRAM:
+            return (void*)FCRAM_BASE;
+        case MemType_VRAM:
+            return (void*)VRAM_BASE;
+        case MemType_VRAM_A:
+            return (void*)VRAM_BANK0;
+        case MemType_VRAM_B:
+            return (void*)VRAM_BANK1;
+        case MemType_QTMRAM:
+            qtmramQueryRegion(&qtmramBase, NULL);
+            return (void*)qtmramBase;
+        default:
+            CTR_UNREACHABLE("Invalid memory type %u", (uint32_t)memType);
+    }
+}
+
+size_t GetMemRegionSize(MemType memType) {
+    size_t qtmramSize = 0;
+
+    switch (memType) {
+        case MemType_AppHeap:
+            return fake_heap_end - &__bss_end__;
+        case MemType_FCRAM:
+            return isNew3DS() ? (FCRAM_SIZE + FCRAM_EXT_SIZE) : FCRAM_SIZE;
+        case MemType_VRAM:
+            return VRAM_SIZE;
+        case MemType_VRAM_A:
+        case MemType_VRAM_B:
+            return VRAM_BANK_SIZE;
+        case MemType_QTMRAM:
+            qtmramQueryRegion(NULL, &qtmramSize);
+            return qtmramSize;
+        default:
+            CTR_UNREACHABLE("Invalid memory type %u", (uint32_t)memType);
+    }
+}
 
 uintptr_t GetPhysicalAddress(const void* addr) { return (uintptr_t)addr; }
 void* GetVirtualAddress(uintptr_t addr) { return (void*)addr; }
@@ -321,9 +351,10 @@ uint32_t GetCPUAccess(const void* p, size_t size) {
 
     // These are all RW.
     const uint32_t sharedAccess = MemAccess_CPURead | MemAccess_CPUWrite;
+    const size_t fcramSize = isNew3DS() ? (FCRAM_SIZE + FCRAM_EXT_SIZE) : FCRAM_SIZE;
 
     bool b = checkRange(addr, size, (u32)&__bss_end__, fake_heap_end - &__bss_end__) ||
-        checkRange(addr, size, FCRAM_BASE, FCRAM_SIZE + FCRAM_EXT_SIZE) ||
+        checkRange(addr, size, FCRAM_BASE, fcramSize) ||
         checkRange(addr, size, VRAM_BASE, VRAM_SIZE);
 
     if (!b) {
@@ -353,11 +384,12 @@ uint32_t GetGPUAccess(const void* p, size_t size) {
 
     bool b = axiwramCutoff && checkRange(addr, size, AXI_RAM_BASE, AXI_RAM_SIZE);
 
-    if (!b) {
-        b = checkRange(addr, size, FCRAM_BASE, fcramSize) ||
-            checkRange(addr, size, FCRAM_EXT_BASE, fcramExtSize) ||
-            checkRange(addr, size, VRAM_BASE, VRAM_SIZE);
-    }
+    if (!b)
+        b = checkRange(addr, size, FCRAM_BASE, fcramSize) || checkRange(addr, size, VRAM_BASE, VRAM_SIZE);
+
+    // Check ext fcram only for new systems.
+    if (!b && isNew3DS())
+        b = checkRange(addr, size, FCRAM_EXT_BASE, fcramExtSize);
 
     if (!b) {
         uintptr_t qtmramBase = 0;
@@ -370,6 +402,48 @@ uint32_t GetGPUAccess(const void* p, size_t size) {
 }
 
 #else
+
+void* GetMemRegionBase(MemType memType) {
+    uintptr_t qtmramBase = 0;
+
+    switch (memType) {
+        case MemType_AppHeap:
+            return fake_heap_start;
+        case MemType_FCRAM:
+            return (void*)__ctru_linear_heap;
+        case MemType_VRAM:
+        case MemType_VRAM_A:
+            return (void*)OS_VRAM_VADDR;
+        case MemType_VRAM_B:
+            return (void*)(OS_VRAM_VADDR + OS_VRAM_SIZE);
+        case MemType_QTMRAM:
+            qtmramQueryRegion(&qtmramBase, NULL);
+            return (void*)qtmramBase;
+        default:
+            CTR_UNREACHABLE("Invalid memory type %u", (uint32_t)memType);
+    }
+}
+
+size_t GetMemRegionSize(MemType memType) {
+    size_t qtmramSize = 0;
+
+    switch (memType) {
+        case MemType_AppHeap:
+            return fake_heap_end - fake_heap_start;
+        case MemType_FCRAM:
+            return __ctru_linear_heap_size;
+        case MemType_VRAM:
+            return OS_VRAM_SIZE;
+        case MemType_VRAM_A:
+        case MemType_VRAM_B:
+            return OS_VRAM_SIZE / 2;
+        case MemType_QTMRAM:
+            qtmramQueryRegion(NULL, &qtmramSize);
+            return qtmramSize;
+        default:
+            CTR_UNREACHABLE("Invalid memory type %u", (uint32_t)memType);
+    }
+}
 
 uintptr_t GetPhysicalAddress(const void* addr) {
     const uintptr_t p = (uintptr_t)addr;

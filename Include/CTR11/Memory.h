@@ -40,6 +40,8 @@ CTR_INLINE void* AllocAnyTypeMem(size_t size, const MemType* memTypes, size_t nu
 
 void FreeMem(void* p);
 
+void* GetMemRegionBase(MemType memType);
+size_t GetMemRegionSize(MemType memType);
 MemType GetMemType(const void* p, size_t size);
 size_t GetAllocSize(const void* p);
 
