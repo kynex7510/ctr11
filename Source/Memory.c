@@ -204,7 +204,7 @@ void FreeMem(void* p) {
             qtmramFree(p);
             break;
         default:
-            CTR_LOG_LOCATION("Invalid memory type");
+            CTR_UNREACHABLE("This shouldn't be happening, maybe some case is missing?");
     }
 }
 
@@ -231,8 +231,7 @@ MemType GetMemType(const void* p, size_t size) {
     if (checkRange(addr, size, (u32)GetMemRegionBase(MemType_QTMRAM), GetMemRegionSize(MemType_QTMRAM)))
         return MemType_QTMRAM;
 
-    CTR_LOG_LOCATION("Invalid address: 0x%08X", addr);
-    return MemType_Unknown;
+    CTR_UNREACHABLE("Invalid address: 0x%08X", addr);
 }
 
 size_t GetAllocSize(const void* p) {
@@ -251,8 +250,7 @@ size_t GetAllocSize(const void* p) {
         case MemType_QTMRAM:
             return qtmramGetSize(p);
         default:
-            CTR_LOG_LOCATION("Invalid memory type");
-            return 0;
+            CTR_UNREACHABLE("This shouldn't be happening, maybe some case is missing?");
     }
 }
 

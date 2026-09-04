@@ -16,7 +16,6 @@ typedef enum {
     MemType_VRAM_A,
     MemType_VRAM_B,
     MemType_QTMRAM,
-    MemType_Unknown,
 } MemType;
 
 typedef enum {
@@ -45,21 +44,10 @@ size_t GetMemRegionSize(MemType memType);
 MemType GetMemType(const void* p, size_t size);
 size_t GetAllocSize(const void* p);
 
-CTR_INLINE bool IsMemAppHeap(const void* p, size_t size) { return GetMemType(p, size) == MemType_AppHeap; }
-CTR_INLINE bool IsMemFCRAM(const void* p, size_t size) { return GetMemType(p, size) == MemType_FCRAM; }
-
-CTR_INLINE bool IsMemVRAM(const void* p, size_t size) {
-    const MemType memType = GetMemType(p, size);
-    return memType == MemType_VRAM_A || memType == MemType_VRAM_B;
-}
-
-CTR_INLINE bool IsMemVRAMA(const void* p, size_t size) { return GetMemType(p, size) == MemType_VRAM_A; }
-CTR_INLINE bool IsMemVRAMB(const void* p, size_t size) { return GetMemType(p, size) == MemType_VRAM_B; }
-CTR_INLINE bool IsMemQTMRAM(const void* p, size_t size) { return GetMemType(p, size) == MemType_QTMRAM; }
-
 uintptr_t GetPhysicalAddress(const void* addr);
 void* GetVirtualAddress(uintptr_t addr);
 
+// Can take in any kind of pointer.
 uint32_t GetMemAccess(const void* p, size_t size);
 
 CTR_INLINE bool IsAccessible(const void* p, size_t size, uint32_t access) {
