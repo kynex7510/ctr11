@@ -30,7 +30,7 @@
 #define CTR_LOG_LINE_DEBUG(...) CTR_LOG_LINE(__VA_ARGS__)
 #else
 #define CTR_LOG_DEBUG(...)
-#define CTR_LOG_FLUSH_DEBUG()
+#define CTR_LOG_EOL_DEBUG()
 #define CTR_LOG_LINE_DEBUG(...)
 #endif // !NDEBUG
 
